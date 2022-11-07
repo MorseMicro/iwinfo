@@ -383,6 +383,7 @@ const struct iwinfo_iso3166_label IWINFO_ISO3166_NAMES[] = {
 
 static const struct iwinfo_ops *backends[] = {
 #ifdef USE_NL80211
+	&dot11ah_ops,
 	&nl80211_ops,
 #endif
 #ifdef USE_MADWIFI

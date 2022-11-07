@@ -2,6 +2,7 @@
  * iwinfo - Wireless Information Library - NL80211 Backend
  *
  *   Copyright (C) 2010-2013 Jo-Philipp Wich <xm@subsignal.org>
+ *   Copyright 2022 Morse Micro
  *
  * The iwinfo library is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License version 2
@@ -408,8 +409,11 @@ static int nl80211_phy_idx_from_uci(const char *name)
 	int idx = -1;
 
 	s = iwinfo_uci_get_radio(name, "mac80211");
-	if (!s)
-		goto out;
+	if (!s){
+		s = iwinfo_uci_get_radio(name, "morse");
+		if(!s)
+			goto out;
+	}
 
 	opt = uci_lookup_option_string(uci_ctx, s, "path");
 	idx = nl80211_phy_idx_from_path(opt);
@@ -1331,15 +1335,16 @@ static int nl80211_get_bssid(const char *ifname, char *buf)
 
 	res = nl80211_phy2ifname(ifname);
 
-	/* try to obtain mac address via NL80211_CMD_GET_INTERFACE */
-	nl80211_request(res ? res : ifname, NL80211_CMD_GET_INTERFACE, 0,
-	                nl80211_get_macaddr_cb, &sb);
+	/* try to find bssid from scan dump results (for AP, this fails 
+	 * and it goes to NL80211_CMD_GET_INTERFACE)*/
+	nl80211_request(res ? res : ifname,
+					NL80211_CMD_GET_SCAN, NLM_F_DUMP,
+					nl80211_get_ssid_bssid_cb, &sb);
 
-	/* failed, try to find bssid from scan dump results */
+	/* failed,  try to obtain mac address via NL80211_CMD_GET_INTERFACE */
 	if (sb.bssid[0] == 0)
-		nl80211_request(res ? res : ifname,
-		                NL80211_CMD_GET_SCAN, NLM_F_DUMP,
-		                nl80211_get_ssid_bssid_cb, &sb);
+		nl80211_request(res ? res : ifname, NL80211_CMD_GET_INTERFACE, 0,
+						nl80211_get_macaddr_cb, &sb);
 
 	/* failed, try to find mac from hostapd info */
 	if ((sb.bssid[0] == 0) &&
@@ -2588,6 +2593,9 @@ static void nl80211_get_scanlist_ie(struct nlattr **bss,
 				e->vht_chan_info.center_chan_2 = ie[4];
 			}
 			break;
+		case 244: /* RSNXE */
+			iwinfo_parse_rsnxe(&e->crypto, ie + 2, ie[1]);
+			break;
 		}
 
 		ielen -= ie[1] + 2;
@@ -3634,7 +3642,7 @@ const struct iwinfo_ops nl80211_ops = {
 	.mbssid_support   = nl80211_get_mbssid_support,
 	.hwmodelist       = nl80211_get_hwmodelist,
 	.htmodelist       = nl80211_get_htmodelist,
-	.htmode		  = nl80211_get_htmode,
+	.htmode           = nl80211_get_htmode,
 	.mode             = nl80211_get_mode,
 	.ssid             = nl80211_get_ssid,
 	.bssid            = nl80211_get_bssid,
@@ -3648,6 +3656,725 @@ const struct iwinfo_ops nl80211_ops = {
 	.scanlist         = nl80211_get_scanlist,
 	.freqlist         = nl80211_get_freqlist,
 	.countrylist      = nl80211_get_countrylist,
+	.survey           = nl80211_get_survey,
+	.lookup_phy       = nl80211_lookup_phyname,
+	.phy_path         = nl80211_phy_path,
+	.close            = nl80211_close
+};
+
+
+/*
+ * Morse Micro Shim Layer
+ * 
+ */
+
+#include "dot11ah_channel.h"
+
+//keeping this is_halow flag for now. Intend to remove it.
+static bool is_halow=false;
+country_channel_map_t *g_map = NULL;
+
+static void str_to_lowercase(char *str)
+{
+	while (*str)
+	{
+		*str = tolower(*str);
+		str++;
+	}
+}
+
+static void nl80211_check_if_halow(const char *ifname)
+{
+	char buf[128];
+	nl80211_get_hardware_name(ifname,buf);
+	str_to_lowercase(buf);
+
+	if (strstr(buf, "halow") != NULL)
+		is_halow = true;
+	else
+		is_halow = false;
+
+	if(is_halow)
+	{
+		g_map = set_s1g_channel_map();
+	}
+}
+
+static inline void _sanitise_rate_entry(struct iwinfo_rate_entry *re){
+	if(re == NULL)
+		return;
+	re->rate = s1g_rate(re->rate, re->mhz);
+	re->mhz /= 20;
+	re->is_vht = 0;
+	re->is_ht = 1;
+}
+
+
+/*
+ * These fill_signal handlers need to be modified for s1g as they work per station. 
+ *  And it's more correct to handle the per station values in the per station handler
+ */
+
+static uint8_t nl80211_get_bandwidth(struct nlattr **ri, uint32_t size){
+	if ((NL80211_RATE_INFO_5_MHZ_WIDTH < size)
+		 && (ri[NL80211_RATE_INFO_5_MHZ_WIDTH]))
+		return 5;
+	else if ((NL80211_RATE_INFO_5_MHZ_WIDTH < size)
+		 && (ri[NL80211_RATE_INFO_10_MHZ_WIDTH]))
+		return 10;
+	else if ((NL80211_RATE_INFO_5_MHZ_WIDTH < size)
+		 && (ri[NL80211_RATE_INFO_40_MHZ_WIDTH]))
+		return 40;
+	else if ((NL80211_RATE_INFO_5_MHZ_WIDTH < size)
+		 && (ri[NL80211_RATE_INFO_80_MHZ_WIDTH]))
+		return 80;
+	else if ((NL80211_RATE_INFO_5_MHZ_WIDTH < size)
+		 && (ri[NL80211_RATE_INFO_80P80_MHZ_WIDTH] ||
+	         ri[NL80211_RATE_INFO_160_MHZ_WIDTH]))
+		return 160;
+	else
+		return 20;
+}
+
+static int dot11ah_fill_signal_cb(struct nl_msg *msg, void *arg)
+{
+	int8_t dbm;
+	int16_t mbit;
+	struct nl80211_rssi_rate *rr = arg;
+	struct nlattr **attr = nl80211_parse(msg);
+	struct nlattr *sinfo[NL80211_STA_INFO_MAX + 1];
+	struct nlattr *rinfo[NL80211_RATE_INFO_MAX + 1];
+
+	static struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
+		[NL80211_STA_INFO_INACTIVE_TIME] = { .type = NLA_U32    },
+		[NL80211_STA_INFO_RX_BYTES]      = { .type = NLA_U32    },
+		[NL80211_STA_INFO_TX_BYTES]      = { .type = NLA_U32    },
+		[NL80211_STA_INFO_RX_PACKETS]    = { .type = NLA_U32    },
+		[NL80211_STA_INFO_TX_PACKETS]    = { .type = NLA_U32    },
+		[NL80211_STA_INFO_SIGNAL]        = { .type = NLA_U8     },
+		[NL80211_STA_INFO_TX_BITRATE]    = { .type = NLA_NESTED },
+		[NL80211_STA_INFO_LLID]          = { .type = NLA_U16    },
+		[NL80211_STA_INFO_PLID]          = { .type = NLA_U16    },
+		[NL80211_STA_INFO_PLINK_STATE]   = { .type = NLA_U8     },
+	};
+
+	static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
+		[NL80211_RATE_INFO_BITRATE]      = { .type = NLA_U16  },
+		[NL80211_RATE_INFO_MCS]          = { .type = NLA_U8   },
+		[NL80211_RATE_INFO_40_MHZ_WIDTH] = { .type = NLA_FLAG },
+		[NL80211_RATE_INFO_SHORT_GI]     = { .type = NLA_FLAG },
+	};
+
+	if (attr[NL80211_ATTR_STA_INFO])
+	{
+		if (!nla_parse_nested(sinfo, NL80211_STA_INFO_MAX,
+		                      attr[NL80211_ATTR_STA_INFO], stats_policy))
+		{
+			if (sinfo[NL80211_STA_INFO_SIGNAL])
+			{
+				dbm = nla_get_u8(sinfo[NL80211_STA_INFO_SIGNAL]);
+				rr->rssi = (rr->rssi * rr->rssi_samples + dbm) / (rr->rssi_samples + 1);
+				rr->rssi_samples++;
+			}
+
+			if (sinfo[NL80211_STA_INFO_TX_BITRATE])
+			{
+				if (!nla_parse_nested(rinfo, NL80211_RATE_INFO_MAX,
+				                      sinfo[NL80211_STA_INFO_TX_BITRATE],
+				                      rate_policy))
+				{
+					if (rinfo[NL80211_RATE_INFO_BITRATE])
+					{
+						uint8_t mhz = nl80211_get_bandwidth(rinfo, NL80211_RATE_INFO_MAX);
+						mbit = nla_get_u16(rinfo[NL80211_RATE_INFO_BITRATE]);
+						mbit = s1g_rate(mbit, mhz);
+						rr->rate = (rr->rate * rr->rate_samples + mbit) / (rr->rate_samples + 1);
+						rr->rate_samples++;
+					}
+				}
+			}
+		}
+	}
+
+	return NL_SKIP;
+}
+
+static void dot11ah_fill_signal(const char *ifname, struct nl80211_rssi_rate *r)
+{
+	DIR *d;
+	struct dirent *de;
+
+	memset(r, 0, sizeof(*r));
+
+	if ((d = opendir("/sys/class/net")) != NULL)
+	{
+		while ((de = readdir(d)) != NULL)
+		{
+			if (!strncmp(de->d_name, ifname, strlen(ifname)) &&
+			    (!de->d_name[strlen(ifname)] ||
+			     !strncmp(&de->d_name[strlen(ifname)], ".sta", 4)))
+			{
+				nl80211_request(de->d_name, NL80211_CMD_GET_STATION,
+				                NLM_F_DUMP, dot11ah_fill_signal_cb, r);
+			}
+		}
+
+		closedir(d);
+	}
+}
+
+/* This probe function needs to be fixed 
+	Want to check /sys/class/net/{ifname}/ for something which indicates a morse device
+	There should be a driver entry somewhere.
+	eh /sys/class/net/wlan1/device/morse is a directory which exists.
+ */
+static int dot11ah_probe(const char *ifname)
+{
+	nl80211_check_if_halow(ifname);
+	return (!!nl80211_ifname2phy(ifname)) && is_halow;
+}
+
+static int dot11ah_get_center_chan2(const char *ifname, int *buf)
+{
+    if(nl80211_get_center_chan2(ifname, buf) < 0)
+        return -1;
+
+    channel_to_halow_freq_t *ch_entry = get_s1g(g_map, *buf);
+    if(ch_entry == NULL)
+        return -1;
+    
+    *buf = ch_entry->halow_channel;
+
+    return 0;
+}
+
+static int dot11ah_get_center_chan1(const char *ifname, int *buf)
+{
+    if(nl80211_get_center_chan1(ifname, buf) < 0)
+        return -1;
+
+    channel_to_halow_freq_t *ch_entry = get_s1g(g_map, *buf);
+    if(ch_entry == NULL)
+        return -1;
+    
+    *buf = ch_entry->halow_channel;
+
+    return 0;
+
+}
+
+static int dot11ah_get_channel(const char *ifname, int *buf)
+{
+	if(dot11ah_get_center_chan1(ifname, buf) == 0)
+		return 0;
+
+	if(nl80211_get_channel(ifname, buf) < 0)
+		return -1;
+
+	channel_to_halow_freq_t *ch_entry = get_s1g(g_map, *buf);
+	if(ch_entry == NULL)
+		return -1;
+
+	*buf = ch_entry->halow_channel;
+
+	return 0;
+
+}
+
+static int dot11ah_get_frequency(const char *ifname, int *buf)
+{
+    char *res, channel[4], hwmode[3];
+    res = nl80211_phy2ifname(ifname);
+	*buf = 0;
+
+    if (dot11ah_get_center_chan1(ifname, buf) < 0)
+		if (dot11ah_get_channel(ifname, buf) < 0)
+			return -1;
+
+	*buf = (int) (get_freq(g_map, *buf)*1000);
+
+	return (*buf == 0) ? -1 : 0;
+}
+
+static int dot11ah_get_bitrate(const char *ifname, int *buf)
+{
+    struct nl80211_rssi_rate rr;
+
+	dot11ah_fill_signal(ifname, &rr);
+
+	if (rr.rate_samples)
+	{
+		*buf = (rr.rate * 100);
+		return 0;
+	}
+
+	return -1;
+}
+
+static int dot11ah_get_hwmodelist(const char *ifname, int *buf)
+{
+	*buf = IWINFO_80211_AH;
+	return 0;
+}
+
+static int dot11ah_get_htmodelist(const char *ifname, int *buf)
+{
+	*buf = IWINFO_HTMODE_NOHT;
+	return 0;
+}
+
+static int dot11ah_get_htmode(const char *ifname, int *buf)
+{
+	int chan;
+	dot11ah_get_channel(ifname, &chan);
+	if(!g_map || !chan)
+		return 0;
+	*buf = s1g_chan2bw(g_map, chan);
+	return 0;
+}
+
+static int dot11ah_get_country(const char *ifname, char *buf)
+{
+	s1g_get_country(buf);
+	return 0;
+}
+
+
+// can likely simplify this much further
+static int dot11ah_get_assoclist(const char *ifname, char *buf, int *len)
+{
+	struct iwinfo_assoclist_entry *ae;
+	static char phyname[32];
+
+	if (nl80211_get_phyname(ifname, phyname))
+		phyname[0]=0;
+		
+	if(nl80211_get_assoclist(ifname, buf, len) < 0)
+		return -1;
+	
+	for(char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_assoclist_entry)){
+		ae = (struct iwinfo_assoclist_entry *) p;
+		_sanitise_rate_entry(&ae->rx_rate);
+		_sanitise_rate_entry(&ae->tx_rate);
+	}
+	return 0;
+}
+
+static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
+{
+	struct iwinfo_scanlist_entry *se;
+	channel_to_halow_freq_t *ch_entry, *prim_chan;
+	if(nl80211_get_scanlist(ifname, buf, len) < 0)
+		return -1;
+	
+	for(char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_scanlist_entry)){
+		se = (struct iwinfo_scanlist_entry *) p;
+
+		ch_entry = get_s1g(g_map, se->channel);
+		prim_chan = get_s1g(g_map, se->ht_chan_info.primary_chan);
+		se->channel = ch_entry->halow_channel;
+		if (se->vht_chan_info.center_chan_1)
+		{
+			ch_entry = get_s1g(g_map, se->vht_chan_info.center_chan_1);
+			se->channel = ch_entry->halow_channel;
+			se->vht_chan_info.center_chan_1 = 0;
+		}else if(se->ht_chan_info.secondary_chan_off == 1) 
+		{			
+			se->channel += 1;
+		}else if(se->ht_chan_info.secondary_chan_off == 3) 
+		{			
+			se->channel -= 1;
+		}
+		se->ht_chan_info.secondary_chan_off=0;
+		se->ht_chan_info.primary_chan=0;
+		se->ah_chan_info.primary_chan=prim_chan->halow_channel;
+		se->ah_chan_info.chan_width=s1g_chan2bw(g_map,se->channel);
+
+		se->crypto.wpa_version |= 4;
+		if(se->crypto.sae_h2e == 1)
+			se->crypto.auth_suites |= IWINFO_KMGMT_SAE;
+		else			
+			se->crypto.auth_suites |= IWINFO_KMGMT_OWE;
+		se->crypto.group_ciphers |= IWINFO_CIPHER_CCMP;
+		se->crypto.group_ciphers &= ~(IWINFO_CIPHER_WEP40 | IWINFO_CIPHER_WEP104);
+		se->crypto.pair_ciphers |= IWINFO_CIPHER_CCMP;
+		se->crypto.pair_ciphers &= ~(IWINFO_CIPHER_WEP40 | IWINFO_CIPHER_WEP104);
+	}
+
+	return 0;
+}
+
+int dot11ah_freq_compare(const void *a, const void *b)
+{
+	const struct iwinfo_freqlist_entry *fe1 = (const struct iwinfo_freqlist_entry *) a;
+	const struct iwinfo_freqlist_entry *fe2 = (const struct iwinfo_freqlist_entry *) b;
+	return ( fe1->mhz - fe2->mhz );
+}
+
+static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
+{
+	struct iwinfo_freqlist_entry *fe;
+	channel_to_halow_freq_t *ch_entry;
+	const size_t fe_size = sizeof(struct iwinfo_freqlist_entry);
+	if(nl80211_get_freqlist(ifname, buf, len) < 0)
+		return -1;
+	
+	for(char *p = buf; p < (buf + *len); p += fe_size){
+		fe = (struct iwinfo_freqlist_entry *) p;
+		ch_entry = get_s1g(g_map, fe->channel);
+		fe->channel = ch_entry->halow_channel;
+		fe->mhz = get_freq(g_map, fe->channel)*1000;
+	}
+
+	qsort(buf, *len/fe_size, fe_size, dot11ah_freq_compare);
+	return 0;
+}
+
+static int dot11ah_get_countrylist(const char *ifname, char *buf, int *len)
+{
+	int count;
+	struct iwinfo_country_entry *e = (struct iwinfo_country_entry *)buf;
+	const struct iwinfo_iso3166_label *l;
+
+	const country_channel_map_t **halow_map = s1g_mapped_channel();
+	char higher='0',lower='0';
+	e->iso3166 = (int)higher*256+lower;
+	e->ccode[0] = '0';
+	e->ccode[1] = '0';
+	e->ccode[2] = 0;
+	e++;
+	count=1;
+	while((*halow_map)->country[0])
+	{
+		higher = (*halow_map)->country[0];
+		lower = (*halow_map)->country[1];
+		e->iso3166 = higher * 256 + lower;
+		e->ccode[0] = higher;
+		e->ccode[1] = lower;
+		e->ccode[2] = 0;
+		e++;
+		halow_map++;
+		count++;
+	}
+	*len = (count * sizeof(struct iwinfo_country_entry));	
+	return 0;
+}
+
+/*
+ * modified function to look for the interface in wpa_supplicant_s1g
+ */
+static int dot11ah_wpactl_connect(const char *ifname, struct sockaddr_un *local)
+{
+	struct sockaddr_un remote = { 0 };
+	size_t remote_length, local_length;
+
+	int sock = socket(PF_UNIX, SOCK_DGRAM, 0);
+	if (sock < 0)
+		return sock;
+
+	remote.sun_family = AF_UNIX;
+	remote_length = sizeof(remote.sun_family) +
+		sprintf(remote.sun_path, "/var/run/wpa_supplicant-%s/%s",
+		        ifname, ifname);
+
+	if (fcntl(sock, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC) < 0)
+	{
+		close(sock);
+		return -1;
+	}
+
+	if (connect(sock, (struct sockaddr *)&remote, remote_length))
+	{
+		remote_length = sizeof(remote.sun_family) +
+			sprintf(remote.sun_path, "/var/run/wpa_supplicant_s1g/%s", ifname);
+
+		if (connect(sock, (struct sockaddr *)&remote, remote_length))
+		{
+			close(sock);
+			return -1;
+		}
+	}
+
+	local->sun_family = AF_UNIX;
+	local_length = sizeof(local->sun_family) +
+		sprintf(local->sun_path, "/var/run/iwinfo-%s-%d", ifname, getpid());
+
+	if (bind(sock, (struct sockaddr *)local, local_length) < 0)
+	{
+		close(sock);
+		return -1;
+	}
+
+	return sock;
+}
+
+/* function copied as is from nl80211 version*/
+static int __dot11ah_wpactl_query(const char *ifname, ...)
+{
+	va_list ap, ap_cur;
+	struct sockaddr_un local = { 0 };
+	int len, mode, found = 0, sock = -1;
+	char *search, *dest, *key, *val, *line, *pos, buf[512];
+
+	if (nl80211_get_mode(ifname, &mode))
+		return 0;
+
+	if (mode != IWINFO_OPMODE_CLIENT &&
+	    mode != IWINFO_OPMODE_ADHOC &&
+	    mode != IWINFO_OPMODE_MESHPOINT)
+		return 0;
+
+	sock = dot11ah_wpactl_connect(ifname, &local);
+
+	if (sock < 0)
+		return 0;
+
+	va_start(ap, ifname);
+
+	/* clear all destination buffers */
+	va_copy(ap_cur, ap);
+
+	while ((search = va_arg(ap_cur, char *)) != NULL)
+	{
+		dest = va_arg(ap_cur, char *);
+		len  = va_arg(ap_cur, int);
+
+		memset(dest, 0, len);
+	}
+
+	va_end(ap_cur);
+
+	send(sock, "STATUS", 6, 0);
+
+	while (true)
+	{
+		if (nl80211_wpactl_recv(sock, buf, sizeof(buf)) <= 0)
+			break;
+
+		if (buf[0] == '<')
+			continue;
+
+		for (line = strtok_r(buf, "\n", &pos);
+			 line != NULL;
+			 line = strtok_r(NULL, "\n", &pos))
+		{
+			key = strtok(line, "=");
+			val = strtok(NULL, "\n");
+
+			if (!key || !val)
+				continue;
+
+			va_copy(ap_cur, ap);
+
+			while ((search = va_arg(ap_cur, char *)) != NULL)
+			{
+				dest = va_arg(ap_cur, char *);
+				len  = va_arg(ap_cur, int);
+
+				if (!strcmp(search, key))
+				{
+					strncpy(dest, val, len - 1);
+					found++;
+					break;
+				}
+			}
+
+			va_end(ap_cur);
+		}
+
+		break;
+	}
+
+	va_end(ap);
+
+	close(sock);
+	unlink(local.sun_path);
+
+	return found;
+}
+
+#define dot11ah_wpactl_query(ifname, ...) \
+	__dot11ah_wpactl_query(ifname, ##__VA_ARGS__, NULL)
+
+/* function copied as is from nl80211 version*/
+static int dot11ah_get_encryption(const char *ifname, char *buf)
+{
+	char *p;
+	int opmode;
+	uint8_t wpa_version = 0;
+	char wpa[2], wpa_key_mgmt[64], wpa_pairwise[16], wpa_groupwise[16];
+	char auth_algs[2], wep_key0[27], wep_key1[27], wep_key2[27], wep_key3[27];
+	char mode[16];
+
+	struct iwinfo_crypto_entry *c = (struct iwinfo_crypto_entry *)buf;
+
+	/* WPA supplicant */
+	if (dot11ah_wpactl_query(ifname,
+			"pairwise_cipher", wpa_pairwise,  sizeof(wpa_pairwise),
+			"group_cipher",    wpa_groupwise, sizeof(wpa_groupwise),
+			"key_mgmt",        wpa_key_mgmt,  sizeof(wpa_key_mgmt),
+			"mode",            mode,          sizeof(mode)))
+	{
+		/* WEP or Open */
+		if (!strcmp(wpa_key_mgmt, "NONE"))
+		{
+			parse_wpa_ciphers(wpa_pairwise, &c->pair_ciphers);
+			parse_wpa_ciphers(wpa_groupwise, &c->group_ciphers);
+
+			if (c->pair_ciphers != 0 && c->pair_ciphers != IWINFO_CIPHER_NONE) {
+				c->enabled     = 1;
+				c->auth_suites = IWINFO_KMGMT_NONE;
+				c->auth_algs   = IWINFO_AUTH_OPEN | IWINFO_AUTH_SHARED;
+			}
+			else {
+				c->pair_ciphers = 0;
+				c->group_ciphers = 0;
+			}
+		}
+
+		/* MESH with SAE */
+		else if (!strcmp(mode, "mesh") && !strcmp(wpa_key_mgmt, "UNKNOWN"))
+		{
+			c->enabled = 1;
+			c->wpa_version = 4;
+			c->auth_suites = IWINFO_KMGMT_SAE;
+			c->pair_ciphers = IWINFO_CIPHER_CCMP;
+			c->group_ciphers = IWINFO_CIPHER_CCMP;
+		}
+
+		/* WPA */
+		else
+		{
+			parse_wpa_ciphers(wpa_pairwise, &c->pair_ciphers);
+			parse_wpa_ciphers(wpa_groupwise, &c->group_ciphers);
+
+			p = wpa_key_mgmt;
+
+			if (!strncmp(p, "WPA2-", 5) || !strncmp(p, "WPA2/", 5))
+			{
+				p += 5;
+				wpa_version = 2;
+			}
+			else if (!strncmp(p, "WPA-", 4))
+			{
+				p += 4;
+				wpa_version = 1;
+			}
+
+			parse_wpa_suites(p, wpa_version, &c->wpa_version, &c->auth_suites);
+
+			c->enabled = !!(c->wpa_version && c->auth_suites);
+		}
+
+		return 0;
+	}
+
+	/* Hostapd */
+	else if (nl80211_hostapd_query(ifname,
+				"wpa",          wpa,          sizeof(wpa),
+				"wpa_key_mgmt", wpa_key_mgmt, sizeof(wpa_key_mgmt),
+				"wpa_pairwise", wpa_pairwise, sizeof(wpa_pairwise),
+				"auth_algs",    auth_algs,    sizeof(auth_algs),
+				"wep_key0",     wep_key0,     sizeof(wep_key0),
+				"wep_key1",     wep_key1,     sizeof(wep_key1),
+				"wep_key2",     wep_key2,     sizeof(wep_key2),
+				"wep_key3",     wep_key3,     sizeof(wep_key3)))
+	{
+		c->wpa_version = 0;
+
+		if (wpa_key_mgmt[0])
+		{
+			for (p = strtok(wpa_key_mgmt, " \t"); p != NULL; p = strtok(NULL, " \t"))
+			{
+				if (!strncmp(p, "WPA-", 4))
+					p += 4;
+
+				parse_wpa_suites(p, atoi(wpa), &c->wpa_version, &c->auth_suites);
+			}
+
+			c->enabled = c->wpa_version ? 1 : 0;
+		}
+
+		if (wpa_pairwise[0])
+			parse_wpa_ciphers(wpa_pairwise, &c->pair_ciphers);
+
+		if (auth_algs[0])
+		{
+			switch (atoi(auth_algs))
+			{
+			case 1:
+				c->auth_algs |= IWINFO_AUTH_OPEN;
+				break;
+
+			case 2:
+				c->auth_algs |= IWINFO_AUTH_SHARED;
+				break;
+
+			case 3:
+				c->auth_algs |= IWINFO_AUTH_OPEN;
+				c->auth_algs |= IWINFO_AUTH_SHARED;
+				break;
+			}
+
+			c->pair_ciphers |= nl80211_check_wepkey(wep_key0);
+			c->pair_ciphers |= nl80211_check_wepkey(wep_key1);
+			c->pair_ciphers |= nl80211_check_wepkey(wep_key2);
+			c->pair_ciphers |= nl80211_check_wepkey(wep_key3);
+
+			c->enabled = (c->auth_algs && c->pair_ciphers) ? 1 : 0;
+		}
+
+		c->group_ciphers = c->pair_ciphers;
+
+		return 0;
+	}
+
+	/* Ad-Hoc or Mesh interfaces without wpa_supplicant are open */
+	else if (!nl80211_get_mode(ifname, &opmode) &&
+	         (opmode == IWINFO_OPMODE_ADHOC ||
+	          opmode == IWINFO_OPMODE_MESHPOINT))
+	{
+		c->enabled = 0;
+
+		return 0;
+	}
+
+
+	return -1;
+}
+
+const struct iwinfo_ops dot11ah_ops = {
+	.name             = "dot11ah",
+	.probe            = dot11ah_probe,
+	.channel          = dot11ah_get_channel,  
+	.center_chan1     = dot11ah_get_center_chan1, 
+	.center_chan2     = dot11ah_get_center_chan2,
+	.frequency        = dot11ah_get_frequency,
+	.frequency_offset = nl80211_get_frequency_offset, 	
+	.txpower          = nl80211_get_txpower,
+	.txpower_offset   = nl80211_get_txpower_offset,
+	.bitrate          = dot11ah_get_bitrate,
+	.signal           = nl80211_get_signal,
+	.noise            = nl80211_get_noise,
+	.quality          = nl80211_get_quality,
+	.quality_max      = nl80211_get_quality_max,
+	.mbssid_support   = nl80211_get_mbssid_support,
+	.hwmodelist       = dot11ah_get_hwmodelist,		
+	.htmodelist       = dot11ah_get_htmodelist,   
+	.htmode           = dot11ah_get_htmode,
+	.mode             = nl80211_get_mode,			
+	.ssid             = nl80211_get_ssid,
+	.bssid            = nl80211_get_bssid,
+	.country          = dot11ah_get_country,
+	.hardware_id      = nl80211_get_hardware_id,
+	.hardware_name    = nl80211_get_hardware_name,
+	.encryption       = dot11ah_get_encryption,
+	.phyname          = nl80211_get_phyname,
+	.assoclist        = dot11ah_get_assoclist,
+	.txpwrlist        = nl80211_get_txpwrlist,
+	.scanlist         = dot11ah_get_scanlist,
+	.freqlist         = dot11ah_get_freqlist,
+	.countrylist      = dot11ah_get_countrylist,
 	.survey           = nl80211_get_survey,
 	.lookup_phy       = nl80211_lookup_phyname,
 	.phy_path         = nl80211_phy_path,

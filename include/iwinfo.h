@@ -31,6 +31,7 @@ enum iwinfo_80211 {
 	IWINFO_80211_AC,
 	IWINFO_80211_AD,
 	IWINFO_80211_AX,
+	IWINFO_80211_AH,
 
 	/* keep last */
 	IWINFO_80211_COUNT
@@ -43,6 +44,9 @@ enum iwinfo_80211 {
 #define IWINFO_80211_AC      (1 << IWINFO_80211_AC)
 #define IWINFO_80211_AD      (1 << IWINFO_80211_AD)
 #define IWINFO_80211_AX      (1 << IWINFO_80211_AX)
+#define IWINFO_80211_AH		 (1 << IWINFO_80211_AH)
+
+#define S1G_CHAN_WIDTH_OFFSET		(2)
 
 extern const char * const IWINFO_80211_NAMES[IWINFO_80211_COUNT];
 
@@ -290,6 +294,15 @@ struct iwinfo_crypto_entry {
 	uint16_t pair_ciphers;
 	uint8_t auth_suites;
 	uint8_t auth_algs;
+	
+	/* RSNXE data */
+	uint8_t prot_twt:1;
+	uint8_t sae_h2e:1;
+	uint8_t sae_pk:1;
+	uint8_t secure_ltf:1;
+	uint8_t secure_rtt:1;
+	uint8_t prot_range_neg:1;
+	uint8_t pad0:2;
 };
 
 struct iwinfo_scanlist_ht_chan_entry {
@@ -302,6 +315,19 @@ struct iwinfo_scanlist_vht_chan_entry {
 	uint8_t chan_width;
 	uint8_t center_chan_1;
 	uint8_t center_chan_2;
+};
+
+struct iwinfo_scanlist_ah_chan_entry {
+	uint8_t primary_chan;
+	uint8_t chan_width;
+};
+
+static uint16_t ah_chan_width[] = {
+	1,  /* 1 MHz*/
+	2,  /* 2 MHz*/
+	4,  /* 4 MHz*/
+	8,  /* 8 MHz*/
+	16, /* 16 MHz*/
 };
 
 extern const char * const ht_secondary_offset[4];
@@ -327,6 +353,7 @@ struct iwinfo_scanlist_entry {
 	struct iwinfo_crypto_entry crypto;
 	struct iwinfo_scanlist_ht_chan_entry ht_chan_info;
 	struct iwinfo_scanlist_vht_chan_entry vht_chan_info;
+	struct iwinfo_scanlist_ah_chan_entry ah_chan_info;
 };
 
 struct iwinfo_country_entry {
@@ -412,6 +439,7 @@ extern const struct iwinfo_ops wext_ops;
 extern const struct iwinfo_ops madwifi_ops;
 extern const struct iwinfo_ops nl80211_ops;
 extern const struct iwinfo_ops wl_ops;
+extern const struct iwinfo_ops dot11ah_ops;
 
 #include "iwinfo/utils.h"
 

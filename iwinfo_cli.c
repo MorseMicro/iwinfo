@@ -69,12 +69,12 @@ static char * format_channel(int ch)
 
 static char * format_frequency(int freq)
 {
-	static char buf[11];
+	static char buf[15];
 
 	if (freq <= 0)
 		snprintf(buf, sizeof(buf), "unknown");
 	else
-		snprintf(buf, sizeof(buf), "%.3f GHz", ((float)freq / 1000.0));
+		snprintf(buf, sizeof(buf), "%.3f %s", ((float)freq / 1000.0), freq > 500000 ? "MHz" : "GHz");
 
 	return buf;
 }
@@ -689,13 +689,16 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 			format_quality_max(e->quality_max));
 		printf("          Encryption: %s\n",
 			format_encryption(&e->crypto));
-		printf("          HT Operation:\n");
-		printf("                    Primary Channel: %d\n",
-			e->ht_chan_info.primary_chan);
-		printf("                    Secondary Channel Offset: %s\n",
-			ht_secondary_offset[e->ht_chan_info.secondary_chan_off]);
-		printf("                    Channel Width: %s\n",
-			format_chan_width(false, e->ht_chan_info.chan_width));
+		
+		if (e->ht_chan_info.primary_chan) {
+			printf("          HT Operation:\n");
+			printf("                    Primary Channel: %d\n",
+				e->ht_chan_info.primary_chan);
+			printf("                    Secondary Channel Offset: %s\n",
+				ht_secondary_offset[e->ht_chan_info.secondary_chan_off]);
+			printf("                    Channel Width: %s\n",
+				format_chan_width(false, e->ht_chan_info.chan_width));
+		}
 
 		if (e->vht_chan_info.center_chan_1) {
 			printf("          VHT Operation:\n");
@@ -705,6 +708,14 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 				 e->vht_chan_info.center_chan_2);
 			printf("                    Channel Width: %s\n",
 				format_chan_width(true, e->vht_chan_info.chan_width));
+		}
+
+		if (e->ah_chan_info.primary_chan) {
+			printf("          AH Operation:\n");
+			printf("                    Channel Width: %s\n",
+				format_chan_width(ah_chan_width[e->ah_chan_info.chan_width]));
+			printf("                    Primary Channel: %d\n",
+				 e->ah_chan_info.primary_chan);
 		}
 
 		printf("\n");
@@ -912,7 +923,7 @@ int main(int argc, char **argv)
 	char *p;
 	const struct iwinfo_ops *iw;
 	glob_t globbuf;
-
+	
 	if (argc > 1 && argc < 3)
 	{
 		fprintf(stderr,
@@ -1031,7 +1042,6 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-
 	iwinfo_finish();
 
 	return rv;

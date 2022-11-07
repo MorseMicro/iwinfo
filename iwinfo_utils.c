@@ -2,6 +2,7 @@
  * iwinfo - Wireless Information Library - Shared utility routines
  *
  *   Copyright (C) 2010 Jo-Philipp Wich <xm@subsignal.org>
+ *   Copyright 2022 Morse Micro
  *
  * The iwinfo library is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License version 2
@@ -597,6 +598,25 @@ void iwinfo_parse_rsn(struct iwinfo_crypto_entry *c, uint8_t *data, uint8_t len,
 
 	data += 2 + (count * 4);
 	len -= 2 + (count * 4);
+}
+
+void iwinfo_parse_rsnxe(struct iwinfo_crypto_entry *c, uint8_t *data, uint8_t len)
+{
+	if (len > 2)
+		return;
+	
+	c->prot_twt = (data[0] >> 4) & 0x1;
+	c->sae_h2e  = (data[0] >> 5) & 0x1;
+	c->sae_pk   = (data[0] >> 6) & 0x1;
+	len -= 1;
+	data += 1;
+
+	if (len == 0)
+		return;
+	
+	c->secure_ltf     = (data[0]) & 0x1;
+	c->secure_rtt     = (data[0] >> 1) & 0x1;
+	c->prot_range_neg = (data[0] >> 2) & 0x1;
 }
 
 struct uci_section *iwinfo_uci_get_radio(const char *name, const char *type)
