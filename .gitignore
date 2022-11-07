@@ -1,0 +1,17 @@
+iwinfo_cli.o
+iwinfo_lib.o
+iwinfo_lua.o
+iwinfo_nl80211.o
+iwinfo_utils.o
+iwinfo_wext_scan.o
+iwinfo_wext.o
+iwinfo.so
+libiwinfo.so
+libiwinfo.so.0
+iwinfo
+
+*.so
+*.so.*
+*.o
+
+.vscode/
