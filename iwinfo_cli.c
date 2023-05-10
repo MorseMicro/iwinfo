@@ -351,6 +351,19 @@ static const char* format_chan_width(bool vht, uint8_t width)
 	return "unknown";
 }
 
+static const char* format_ah_chan_width(uint8_t width)
+{
+	if (width < ARRAY_SIZE(ah_chan_width))
+		switch (ah_chan_width[width]) {
+			case 1: return "1 MHz";
+			case 2: return "2 MHz";
+			case 4: return "4 MHz";
+			case 8: return "8 MHz";
+			case 16: return "16 MHz";
+		}
+
+	return "unknown";
+}
 
 static const char * print_type(const struct iwinfo_ops *iw, const char *ifname)
 {
@@ -713,7 +726,7 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 		if (e->ah_chan_info.primary_chan) {
 			printf("          AH Operation:\n");
 			printf("                    Channel Width: %s\n",
-				format_chan_width(ah_chan_width[e->ah_chan_info.chan_width]));
+				format_ah_chan_width(ah_chan_width[e->ah_chan_info.chan_width]));
 			printf("                    Primary Channel: %d\n",
 				 e->ah_chan_info.primary_chan);
 		}
