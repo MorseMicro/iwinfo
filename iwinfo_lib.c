@@ -31,6 +31,7 @@ const char * const IWINFO_80211_NAMES[IWINFO_80211_COUNT] = {
 	"ad",
 	"ax",
 	"be",
+	"ah",
 };
 
 const char * const IWINFO_BAND_NAMES[IWINFO_BAND_COUNT] = {
@@ -38,6 +39,7 @@ const char * const IWINFO_BAND_NAMES[IWINFO_BAND_COUNT] = {
 	"5 GHz",
 	"6 GHz",
 	"60 GHz",
+	"900 MHz",
 };
 
 const char * const IWINFO_CIPHER_NAMES[IWINFO_CIPHER_COUNT] = {
