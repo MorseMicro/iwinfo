@@ -3958,6 +3958,9 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 		ch_entry = get_s1g(g_map, se->channel);
 		prim_chan = get_s1g(g_map, se->ht_chan_info.primary_chan);
 		se->channel = ch_entry->halow_channel;
+		se->band = IWINFO_BAND_900;
+		se->mhz = get_freq(g_map, se->channel)*1000;
+
 		if (se->vht_chan_info.center_chan_1)
 		{
 			ch_entry = get_s1g(g_map, se->vht_chan_info.center_chan_1);
@@ -3973,7 +3976,7 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 		se->ht_chan_info.secondary_chan_off=0;
 		se->ht_chan_info.primary_chan=0;
 		se->ah_chan_info.primary_chan=prim_chan->halow_channel;
-		se->ah_chan_info.chan_width=s1g_chan2bw(g_map,se->channel);
+		se->ah_chan_info.chan_width=s1g_chan2bw(g_map, se->channel);
 
 		se->crypto.wpa_version |= 4;
 		if(se->crypto.sae_h2e == 1)
@@ -4010,6 +4013,7 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 		fe->channel = ch_entry->halow_channel;
 		fe->mhz = get_freq(g_map, fe->channel)*1000;
 		fe->band = IWINFO_BAND_900;
+		fe->flags = 0;
 	}
 
 	qsort(buf, *len/fe_size, fe_size, dot11ah_freq_compare);
