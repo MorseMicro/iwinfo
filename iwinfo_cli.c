@@ -726,7 +726,7 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 		if (e->ah_chan_info.primary_chan) {
 			printf("          AH Operation:\n");
 			printf("                    Channel Width: %s\n",
-				format_ah_chan_width(ah_chan_width[e->ah_chan_info.chan_width]));
+				format_ah_chan_width(e->ah_chan_info.chan_width));
 			printf("                    Primary Channel: %d\n",
 				 e->ah_chan_info.primary_chan);
 		}
