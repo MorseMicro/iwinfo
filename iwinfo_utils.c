@@ -152,8 +152,8 @@ uint8_t iwinfo_ghz2band(uint32_t ghz)
 
 size_t iwinfo_format_hwmodes(int modes, char *buf, size_t len)
 {
-	// bit numbers as per IWINFO_80211_*:  ad ac ax  a  b  g  n
-	const int order[IWINFO_80211_COUNT] = { 5, 4, 6, 0, 1, 2, 3 };
+	// bit numbers as per IWINFO_80211_*:  ad ac ax  ah a  b  g  n
+	const int order[IWINFO_80211_COUNT] = { 5, 4, 6, 7, 0, 1, 2, 3 };
 	size_t res = 0;
 	int i;
 
@@ -604,7 +604,7 @@ void iwinfo_parse_rsnxe(struct iwinfo_crypto_entry *c, uint8_t *data, uint8_t le
 {
 	if (len > 2)
 		return;
-	
+
 	c->prot_twt = (data[0] >> 4) & 0x1;
 	c->sae_h2e  = (data[0] >> 5) & 0x1;
 	c->sae_pk   = (data[0] >> 6) & 0x1;
@@ -613,7 +613,7 @@ void iwinfo_parse_rsnxe(struct iwinfo_crypto_entry *c, uint8_t *data, uint8_t le
 
 	if (len == 0)
 		return;
-	
+
 	c->secure_ltf     = (data[0]) & 0x1;
 	c->secure_rtt     = (data[0] >> 1) & 0x1;
 	c->prot_range_neg = (data[0] >> 2) & 0x1;
