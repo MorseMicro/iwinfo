@@ -4003,12 +4003,13 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 	const size_t fe_size = sizeof(struct iwinfo_freqlist_entry);
 	if(nl80211_get_freqlist(ifname, buf, len) < 0)
 		return -1;
-	
+
 	for(char *p = buf; p < (buf + *len); p += fe_size){
 		fe = (struct iwinfo_freqlist_entry *) p;
 		ch_entry = get_s1g(g_map, fe->channel);
 		fe->channel = ch_entry->halow_channel;
 		fe->mhz = get_freq(g_map, fe->channel)*1000;
+		fe->band = IWINFO_BAND_900;
 	}
 
 	qsort(buf, *len/fe_size, fe_size, dot11ah_freq_compare);

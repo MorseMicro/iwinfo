@@ -56,7 +56,7 @@ enum iwinfo_band {
 	IWINFO_BAND_5,
 	IWINFO_BAND_6,
 	IWINFO_BAND_60,
-
+	IWINFO_BAND_900,
 	/* keep last */
 	IWINFO_BAND_COUNT
 };
@@ -65,6 +65,7 @@ enum iwinfo_band {
 #define IWINFO_BAND_5        (1 << IWINFO_BAND_5)
 #define IWINFO_BAND_6        (1 << IWINFO_BAND_6)
 #define IWINFO_BAND_60       (1 << IWINFO_BAND_60)
+#define IWINFO_BAND_900      (1 << IWINFO_BAND_900)
 
 extern const char * const IWINFO_BAND_NAMES[IWINFO_BAND_COUNT];
 
