@@ -266,3 +266,4 @@
 "ralink,rt3883-wmac"    0      0  "Ralink" "Rt3883"
 "ralink,rt5350-wmac"    0      0  "Ralink" "Rt5350"
 "ralink,rt7620-wmac"    0      0  "MediaTek" "MT7620"
+"morse,mm610x-spi"      0      0  "Morse Micro" "HaLow WiFi"

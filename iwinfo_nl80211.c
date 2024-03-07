@@ -3670,34 +3670,18 @@ const struct iwinfo_ops nl80211_ops = {
 
 #include "dot11ah_channel.h"
 
-//keeping this is_halow flag for now. Intend to remove it.
-static bool is_halow=false;
 country_channel_map_t *g_map = NULL;
 
-static void str_to_lowercase(char *str)
+static bool nl80211_is_halow(const char *ifname)
 {
-	while (*str)
-	{
-		*str = tolower(*str);
-		str++;
-	}
-}
+	struct iwinfo_hardware_entry *e = nl80211_get_hardware_entry(ifname);
+	if (!e)
+		return false;
 
-static void nl80211_check_if_halow(const char *ifname)
-{
-	char buf[128];
-	nl80211_get_hardware_name(ifname,buf);
-	str_to_lowercase(buf);
+	if (strcmp(e->device_name, "HaLow WiFi"))
+		return false;
 
-	if (strstr(buf, "halow") != NULL)
-		is_halow = true;
-	else
-		is_halow = false;
-
-	if(is_halow)
-	{
-		g_map = set_s1g_channel_map();
-	}
+	return true;
 }
 
 static inline void _sanitise_rate_entry(struct iwinfo_rate_entry *re){
@@ -3823,15 +3807,16 @@ static void dot11ah_fill_signal(const char *ifname, struct nl80211_rssi_rate *r)
 	}
 }
 
-/* This probe function needs to be fixed 
-	Want to check /sys/class/net/{ifname}/ for something which indicates a morse device
-	There should be a driver entry somewhere.
-	eh /sys/class/net/wlan1/device/morse is a directory which exists.
- */
 static int dot11ah_probe(const char *ifname)
 {
-	nl80211_check_if_halow(ifname);
-	return (!!nl80211_ifname2phy(ifname)) && is_halow;
+	if (!nl80211_ifname2phy(ifname))
+		return 0;
+
+	if (!nl80211_is_halow(ifname))
+		return 0;
+
+	g_map = set_s1g_channel_map();
+	return 1;
 }
 
 static int dot11ah_get_center_chan2(const char *ifname, int *buf)
