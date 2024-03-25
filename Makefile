@@ -37,7 +37,7 @@ ifneq ($(filter nl80211,$(IWINFO_BACKENDS)),)
 	IWINFO_CLI_LDFLAGS += -lnl-tiny
 	IWINFO_LIB_LDFLAGS += -lnl-tiny
 	IWINFO_LIB_OBJ     += iwinfo_nl80211.o
-	IWINFO_LIB_OBJ     += dot11ah_channel.o
+	IWINFO_LIB_OBJ     += iwinfo_morsecli.o dot11ah_channel.o
 endif
 
 

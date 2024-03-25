@@ -13,10 +13,12 @@
  * You should have received a copy of the GNU General Public License along
  * with the iwinfo library. If not, see http://www.gnu.org/licenses/.
 */
-#include "dot11ah_channel.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+#include "dot11ah_channel.h"
 
 static const channel_to_halow_freq_t kNullAhValue = {0, 0, 0, 0};
 
@@ -288,7 +290,7 @@ country_channel_map_t *set_s1g_channel_map(void)
 
 channel_to_halow_freq_t *get_s1g(country_channel_map_t *map, int channel)
 {
-	if(map == NULL) 
+	if(map == NULL)
 		return &kNullAhValue;
 
     for(int i=0;i<map->num_mapped_channels;i++)
@@ -377,7 +379,7 @@ const country_channel_map_t** s1g_mapped_channel()
 	return mapped_channel;
 }
 
-void s1g_get_country(const char *buf)
+void s1g_get_country(char *buf)
 {
 	country_channel_map_t halow_vals;
 	morse_get_country(&halow_vals);
@@ -399,9 +401,9 @@ int mmrc_table_active_raw(const char* line)
     if (strstr(line+17,"A"))
         return 1;
 return 0;
-    
+
 }
-//returns the avg tp from the selected line. 
+//returns the avg tp from the selected line.
 int get_mmrc_table_raw_throughput_avg(const char* line)
 {
     float tp_avg;
@@ -418,19 +420,19 @@ int get_mmrc_throughput(const char* phyname)
     char table_path[64];
     int rate_kbps=-1;
 
-    sprintf (table_path,"/sys/kernel/debug/ieee80211/%s/morse/mmrc_table",phyname);   
+    sprintf (table_path,"/sys/kernel/debug/ieee80211/%s/morse/mmrc_table",phyname);
 	file = fopen(table_path, "r");
     if (file == NULL)
     {
         return -1;
     }
-    
+
     while ((read = getline(&line, &len, file)) != -1) {
         if(mmrc_table_active_raw(line))
         {
             rate_kbps = get_mmrc_table_raw_throughput_avg(line);
 			break;
-        }        
+        }
     }
 	fclose(file);
     if (line)

@@ -31,6 +31,7 @@
 #include <stdlib.h>
 
 #include "iwinfo_nl80211.h"
+#include "iwinfo_morsecli.h"
 
 #define min(x, y) ((x) < (y)) ? (x) : (y)
 
@@ -1335,7 +1336,7 @@ static int nl80211_get_bssid(const char *ifname, char *buf)
 
 	res = nl80211_phy2ifname(ifname);
 
-	/* try to find bssid from scan dump results (for AP, this fails 
+	/* try to find bssid from scan dump results (for AP, this fails
 	 * and it goes to NL80211_CMD_GET_INTERFACE)*/
 	nl80211_request(res ? res : ifname,
 					NL80211_CMD_GET_SCAN, NLM_F_DUMP,
@@ -3698,7 +3699,7 @@ const struct iwinfo_ops nl80211_ops = {
 
 /*
  * Morse Micro Shim Layer
- * 
+ *
  */
 
 #include "dot11ah_channel.h"
@@ -3707,7 +3708,7 @@ country_channel_map_t *g_map = NULL;
 
 static bool nl80211_is_halow(const char *ifname)
 {
-	struct iwinfo_hardware_entry *e = nl80211_get_hardware_entry(ifname);
+	const struct iwinfo_hardware_entry *e = nl80211_get_hardware_entry(ifname);
 	if (!e)
 		return false;
 
@@ -3728,7 +3729,7 @@ static inline void _sanitise_rate_entry(struct iwinfo_rate_entry *re){
 
 
 /*
- * These fill_signal handlers need to be modified for s1g as they work per station. 
+ * These fill_signal handlers need to be modified for s1g as they work per station.
  *  And it's more correct to handle the per station values in the per station handler
  */
 
@@ -3860,7 +3861,7 @@ static int dot11ah_get_center_chan2(const char *ifname, int *buf)
     channel_to_halow_freq_t *ch_entry = get_s1g(g_map, *buf);
     if(ch_entry == NULL)
         return -1;
-    
+
     *buf = ch_entry->halow_channel;
 
     return 0;
@@ -3874,7 +3875,7 @@ static int dot11ah_get_center_chan1(const char *ifname, int *buf)
     channel_to_halow_freq_t *ch_entry = get_s1g(g_map, *buf);
     if(ch_entry == NULL)
         return -1;
-    
+
     *buf = ch_entry->halow_channel;
 
     return 0;
@@ -3901,11 +3902,9 @@ static int dot11ah_get_channel(const char *ifname, int *buf)
 
 static int dot11ah_get_frequency(const char *ifname, int *buf)
 {
-    char *res, channel[4], hwmode[3];
-    res = nl80211_phy2ifname(ifname);
 	*buf = 0;
 
-    if (dot11ah_get_center_chan1(ifname, buf) < 0)
+	if (dot11ah_get_center_chan1(ifname, buf) < 0)
 		if (dot11ah_get_channel(ifname, buf) < 0)
 			return -1;
 
@@ -3957,24 +3956,32 @@ static int dot11ah_get_country(const char *ifname, char *buf)
 	return 0;
 }
 
+static int dot11ah_get_noise(const char *ifname, int *buf)
+{
+	if (!morse_cli_stats_query(ifname, "Noise dBm", buf))
+		return -1;
+	else
+		return 0;
+}
 
-// can likely simplify this much further
 static int dot11ah_get_assoclist(const char *ifname, char *buf, int *len)
 {
 	struct iwinfo_assoclist_entry *ae;
-	static char phyname[32];
+	int noise = 0;
 
-	if (nl80211_get_phyname(ifname, phyname))
-		phyname[0]=0;
-		
-	if(nl80211_get_assoclist(ifname, buf, len) < 0)
+	if (nl80211_get_assoclist(ifname, buf, len) < 0)
 		return -1;
-	
-	for(char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_assoclist_entry)){
+
+	dot11ah_get_noise(ifname, &noise);
+
+	for (char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_assoclist_entry))
+	{
 		ae = (struct iwinfo_assoclist_entry *) p;
+		ae->noise = noise;
 		_sanitise_rate_entry(&ae->rx_rate);
 		_sanitise_rate_entry(&ae->tx_rate);
 	}
+
 	return 0;
 }
 
@@ -3984,7 +3991,7 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 	channel_to_halow_freq_t *ch_entry, *prim_chan;
 	if(nl80211_get_scanlist(ifname, buf, len) < 0)
 		return -1;
-	
+
 	for(char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_scanlist_entry)){
 		se = (struct iwinfo_scanlist_entry *) p;
 
@@ -3999,11 +4006,11 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 			ch_entry = get_s1g(g_map, se->vht_chan_info.center_chan_1);
 			se->channel = ch_entry->halow_channel;
 			se->vht_chan_info.center_chan_1 = 0;
-		}else if(se->ht_chan_info.secondary_chan_off == 1) 
-		{			
+		}else if(se->ht_chan_info.secondary_chan_off == 1)
+		{
 			se->channel += 1;
-		}else if(se->ht_chan_info.secondary_chan_off == 3) 
-		{			
+		}else if(se->ht_chan_info.secondary_chan_off == 3)
+		{
 			se->channel -= 1;
 		}
 		se->ht_chan_info.secondary_chan_off=0;
@@ -4014,7 +4021,7 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 		se->crypto.wpa_version |= 4;
 		if(se->crypto.sae_h2e == 1)
 			se->crypto.auth_suites |= IWINFO_KMGMT_SAE;
-		else			
+		else
 			se->crypto.auth_suites |= IWINFO_KMGMT_OWE;
 		se->crypto.group_ciphers |= IWINFO_CIPHER_CCMP;
 		se->crypto.group_ciphers &= ~(IWINFO_CIPHER_WEP40 | IWINFO_CIPHER_WEP104);
@@ -4057,7 +4064,6 @@ static int dot11ah_get_countrylist(const char *ifname, char *buf, int *len)
 {
 	int count;
 	struct iwinfo_country_entry *e = (struct iwinfo_country_entry *)buf;
-	const struct iwinfo_iso3166_label *l;
 
 	const country_channel_map_t **halow_map = s1g_mapped_channel();
 	char higher='0',lower='0';
@@ -4079,7 +4085,7 @@ static int dot11ah_get_countrylist(const char *ifname, char *buf, int *len)
 		halow_map++;
 		count++;
 	}
-	*len = (count * sizeof(struct iwinfo_country_entry));	
+	*len = (count * sizeof(struct iwinfo_country_entry));
 	return 0;
 }
 
@@ -4375,23 +4381,23 @@ static int dot11ah_get_encryption(const char *ifname, char *buf)
 const struct iwinfo_ops dot11ah_ops = {
 	.name             = "dot11ah",
 	.probe            = dot11ah_probe,
-	.channel          = dot11ah_get_channel,  
-	.center_chan1     = dot11ah_get_center_chan1, 
+	.channel          = dot11ah_get_channel,
+	.center_chan1     = dot11ah_get_center_chan1,
 	.center_chan2     = dot11ah_get_center_chan2,
 	.frequency        = dot11ah_get_frequency,
-	.frequency_offset = nl80211_get_frequency_offset, 	
+	.frequency_offset = nl80211_get_frequency_offset,
 	.txpower          = nl80211_get_txpower,
 	.txpower_offset   = nl80211_get_txpower_offset,
 	.bitrate          = dot11ah_get_bitrate,
 	.signal           = nl80211_get_signal,
-	.noise            = nl80211_get_noise,
+	.noise            = dot11ah_get_noise,
 	.quality          = nl80211_get_quality,
 	.quality_max      = nl80211_get_quality_max,
 	.mbssid_support   = nl80211_get_mbssid_support,
-	.hwmodelist       = dot11ah_get_hwmodelist,		
-	.htmodelist       = dot11ah_get_htmodelist,   
+	.hwmodelist       = dot11ah_get_hwmodelist,
+	.htmodelist       = dot11ah_get_htmodelist,
 	.htmode           = dot11ah_get_htmode,
-	.mode             = nl80211_get_mode,			
+	.mode             = nl80211_get_mode,
 	.ssid             = nl80211_get_ssid,
 	.bssid            = nl80211_get_bssid,
 	.country          = dot11ah_get_country,

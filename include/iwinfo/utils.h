@@ -66,6 +66,7 @@ int iwinfo_hardware_id_from_mtd(struct iwinfo_hardware_id *id);
 
 void iwinfo_parse_rsn(struct iwinfo_crypto_entry *c, uint8_t *data, uint8_t len,
 					  uint16_t defcipher, uint8_t defauth);
+void iwinfo_parse_rsnxe(struct iwinfo_crypto_entry *c, uint8_t *data, uint8_t len);
 
 struct uci_section *iwinfo_uci_get_radio(const char *name, const char *type);
 void iwinfo_uci_free(void);

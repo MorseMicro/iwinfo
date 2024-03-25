@@ -84,21 +84,21 @@ int s1g_chan2bw(country_channel_map_t *map,int channel);
 
 /**
  * gives a pointer to the country separated channels map
- * @return a pointer to the country separated channels map. 
+ * @return a pointer to the country separated channels map.
  */
 const country_channel_map_t** s1g_mapped_channel();
 
 
 /**
- * returns the currently set country. 
+ * returns the currently set country.
  * @param buf a pointer to the result buffer.
  */
-void s1g_get_country(const char *buf);
+void s1g_get_country(char *buf);
 
 /**
  * gets mmrc average throughput from the mmrc_table.
- * @param phyname phyname of the halow device. 
- * @return average throughput in kbps 
+ * @param phyname phyname of the halow device.
+ * @return average throughput in kbps
  */
 int get_mmrc_throughput(const char* phyname);
 
