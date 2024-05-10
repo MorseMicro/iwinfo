@@ -39,6 +39,7 @@ static FILE *execvp_popen_read(const char *file, const char *const argv[])
 	case 0: /* child */
 		close(pipefd[0]);
 		dup2(pipefd[1], STDOUT_FILENO);
+		freopen("/dev/null", "w", stderr);  /* throw away stderr, to avoid noise in output */
 		execvp(file, (char * const*)argv);
 		exit(1);
 		break;
