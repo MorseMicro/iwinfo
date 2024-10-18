@@ -4019,10 +4019,11 @@ static int dot11ah_get_country(const char *ifname, char *buf)
 
 static int dot11ah_get_noise(const char *ifname, int *buf)
 {
-	if (!morse_cli_stats_query(ifname, "Noise dBm", buf))
+	if (!morse_cli_stats_query(ifname, "Noise (dBm)", buf)) {
 		return -1;
-	else
-		return 0;
+	}
+
+	return 0;
 }
 
 static int dot11ah_get_assoclist(const char *ifname, char *buf, int *len)

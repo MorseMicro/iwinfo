@@ -52,6 +52,31 @@ static FILE *execvp_popen_read(const char *file, const char *const argv[])
 	}
 }
 
+/*
+ * Remove leading and trailing spaces from a string.
+ * The first trailing space is overwritten with '\0'.
+ * Returns a pointer to the first non-space character in the string.
+ */
+static char *strip(char *s)
+{
+	char *start;
+	char *end;
+
+	if (!s)
+		return s;
+
+	start = s;
+	end = s + strlen(s) - 1;
+
+	while (*start == ' ')
+		start++;
+
+	while ((end >= start) && (*end == ' '))
+		*end-- = '\0';
+
+	return start;
+}
+
 /* Query particular stats from morse_cli.
  *
  * Style of function echos nl80211_hostapd_query.
@@ -96,6 +121,9 @@ int __morse_cli_stats_query(const char *ifname, ...)
 
 		if (!key || !val || !*key)
 			continue;
+
+		key = strip(key);
+		val = strip(val);
 
 		va_copy(ap_cur, ap);
 
