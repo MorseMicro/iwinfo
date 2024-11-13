@@ -3712,7 +3712,7 @@ static bool nl80211_is_halow(const char *ifname)
 	if (!e)
 		return false;
 
-	if (strcmp(e->device_name, "HaLow WiFi"))
+	if (strcmp(e->vendor_name, "Morse Micro"))
 		return false;
 
 	return true;

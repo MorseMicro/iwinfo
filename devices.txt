@@ -192,8 +192,10 @@
 0x02d0 0xa9a6 0x0000 0x0000    0      0  "Cypress"  "CYW43455"
 0x02d0 0x4345 0x0000 0x0000    0      0  "Cypress"  "CYW43455"
 0x1ae9 0x0310 0x1ae9 0x0000    0      0  "Wilocity" "Wil6210"
-0x325B 0x0206 0x0000 0x0000    0      0  "Morse Micro" "HaLow WiFi"
-0x325B 0x0306 0x0000 0x0000    0      0  "Morse Micro" "HaLow WiFi"
+0x325B 0x0206 0x0000 0x0000    0      0  "Morse Micro" "MM6108A0"
+0x325B 0x0306 0x0000 0x0000    0      0  "Morse Micro" "MM6108A1"
+0x325B 0x0709 0x0000 0x0000    0      0  "Morse Micro" "MM8108-B1"
+0x325B 0x0809 0x0000 0x0000    0      0  "Morse Micro" "MM8108-B2"
 
 
 # USB devices
@@ -244,6 +246,8 @@
 # rtl8xxxu/rtl8xxxu_core.c
 0x0000 0x0000 0x0bda 0x8176    0      0  "Realtek" "RTL8188CU"
 0x0000 0x0000 0x0bda 0xf179    0      0  "Realtek" "RTL8188FTV"
+# morse-driver/usb.c
+0x0000 0x0000 0x325b 0x8100    0      0  "Morse Micro" "USB-MM810x"
 
 # FDT compatible strings
 # "compatible" | txpower offset | frequency offset | ...
@@ -266,4 +270,5 @@
 "ralink,rt3883-wmac"    0      0  "Ralink" "Rt3883"
 "ralink,rt5350-wmac"    0      0  "Ralink" "Rt5350"
 "ralink,rt7620-wmac"    0      0  "MediaTek" "MT7620"
-"morse,mm610x-spi"      0      0  "Morse Micro" "HaLow WiFi"
+"morse,mm610x-spi"      0      0  "Morse Micro" "SPI-MM601X"
+"morse,mm810x-spi"      0      0  "Morse Micro" "SPI-MM810X"
