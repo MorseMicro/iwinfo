@@ -181,6 +181,7 @@ static const country_channel_map_t jp_channel_map = {
 	.num_mapped_channels = 11,
 	.ah_vals = {
 		/* 1 Mhz */
+		{108, 9, 921, 0},
 		{36, 13, 923, 0},
 		{40, 15, 924, 0},
 		{44, 17, 925, 0},
