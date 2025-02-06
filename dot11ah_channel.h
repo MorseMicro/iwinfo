@@ -17,6 +17,8 @@
 #ifndef __DOT11AH_CHANNELS__
 #define __DOT11AH_CHANNELS__
 
+#define ARRAY_SIZE(arr)		(sizeof(arr) / sizeof((arr)[0]))
+
 typedef struct {
 	/*5G channel*/
 	int channel;
@@ -31,7 +33,7 @@ typedef struct {
 typedef struct {
 	char country[3];
 	int num_mapped_channels;
-	channel_to_halow_freq_t ah_vals[];
+	channel_to_halow_freq_t *ah_vals;
 } country_channel_map_t;
 
 
