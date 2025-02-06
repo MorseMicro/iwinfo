@@ -19,230 +19,76 @@
 #include <stdlib.h>
 
 #include "dot11ah_channel.h"
+#include "dot11ah_channel_rules.c"
 
 static const channel_to_halow_freq_t kNullAhValue = {0, 0, 0, 0};
 
+/* US map */
 static const country_channel_map_t us_channel_map = {
 	.country = "US",
-	.num_mapped_channels = 48,
-	.ah_vals = {
-		/* 1Mhz */
-		{132, 1, 902.5, 0},
-		{136, 3, 903.5, 0},
-		{36, 5, 904.5, 0},
-		{40, 7, 905.5, 0},
-		{44, 9, 906.5, 0},
-		{48, 11, 907.5, 0},
-		{52, 13, 908.5, 0},
-		{56, 15, 909.5, 0},
-		{60, 17, 910.5, 0},
-		{64, 19, 911.5, 0},
-		{100, 21, 912.5, 0},
-		{104, 23, 913.5, 0},
-		{108, 25, 914.5, 0},
-		{112, 27, 915.5, 0},
-		{116, 29, 916.5, 0},
-		{120, 31, 917.5, 0},
-		{124, 33, 918.5, 0},
-		{128, 35, 919.5, 0},
-		{149, 37, 920.5, 0},
-		{153, 39, 921.5, 0},
-		{157, 41, 922.5, 0},
-		{161, 43, 923.5, 0},
-		{165, 45, 924.5, 0},
-		{169, 47, 925.5, 0},
-		{173, 49, 926.5, 0},
-		{177, 51, 927.5, 0},
-		/* 2MHz */
-		{134, 2, 903, 1},
-		{38, 6, 905, 1},
-		{46, 10, 907, 1},
-		{54, 14, 909, 1},
-		{62, 18, 911, 1},
-		{102, 22, 913, 1},
-		{110, 26, 915, 1},
-		{118, 30, 917, 1},
-		{126, 34, 919, 1},
-		{151, 38, 921, 1},
-		{159, 42, 923, 1},
-		{167, 46, 925, 1},
-		{175, 50, 927, 1},
-		/* 4MHz */
-		{42, 8, 906, 2},
-		{58, 16, 910, 2},
-		{106, 24, 914, 2},
-		{122, 32, 918, 2},
-		{155, 40, 922, 2},
-		{171, 48, 926, 2},
-		/* 8MHz */
-		{50, 12, 908, 3},
-		{114, 28, 916, 3},
-		{163, 44, 924, 3},
-	}
+	.num_mapped_channels = ARRAY_SIZE(us_s1g_channels),
+	.ah_vals = us_s1g_channels,
 };
 
+/* AU map */
 static const country_channel_map_t au_channel_map = {
 	.country = "AU",
-	.num_mapped_channels = 23,
-	.ah_vals = {
-		/* 1Mhz */
-		{112, 27, 915.5, 0},
-		{116, 29, 916.5, 0},
-		{120, 31, 917.5, 0},
-		{124, 33, 918.5, 0},
-		{128, 35, 919.5, 0},
-		{149, 37, 920.5, 0},
-		{153, 39, 921.5, 0},
-		{157, 41, 922.5, 0},
-		{161, 43, 923.5, 0},
-		{165, 45, 924.5, 0},
-		{169, 47, 925.5, 0},
-		{173, 49, 926.5, 0},
-		{177, 51, 927.5, 0},
-		/* 2Mhz */
-		{118, 30, 917, 1},
-		{126, 34, 919, 1},
-		{151, 38, 921, 1},
-		{159, 42, 923, 1},
-		{167, 46, 925, 1},
-		{175, 50, 927, 1},
-		/* 4 Mhz */
-		{122, 32, 918, 2},
-		{155, 40, 922, 2},
-		{171, 48, 926, 2},
-		/* 8 Mhz */
-		{163, 44, 924, 3}
-	}
+	.num_mapped_channels = ARRAY_SIZE(au_s1g_channels),
+	.ah_vals = au_s1g_channels,
 };
 
+/* NZ map */
 static const country_channel_map_t nz_channel_map = {
 	.country = "NZ",
-	.num_mapped_channels = 23,
-	.ah_vals = {
-		/* 1Mhz */
-		{112, 27, 915.5, 0},
-		{116, 29, 916.5, 0},
-		{120, 31, 917.5, 0},
-		{124, 33, 918.5, 0},
-		{128, 35, 919.5, 0},
-		{149, 37, 920.5, 0},
-		{153, 39, 921.5, 0},
-		{157, 41, 922.5, 0},
-		{161, 43, 923.5, 0},
-		{165, 45, 924.5, 0},
-		{169, 47, 925.5, 0},
-		{173, 49, 926.5, 0},
-		{177, 51, 927.5, 0},
-		/* 2Mhz */
-		{118, 30, 917, 1},
-		{126, 34, 919, 1},
-		{151, 38, 921, 1},
-		{159, 42, 923, 1},
-		{167, 46, 925, 1},
-		{175, 50, 927, 1},
-		/* 4 Mhz */
-		{122, 32, 918, 2},
-		{155, 40, 922, 2},
-		{171, 48, 926, 2},
-		/* 8 Mhz */
-		{163, 44, 924, 3}
-	}
+	.num_mapped_channels = ARRAY_SIZE(nz_s1g_channels),
+	.ah_vals = nz_s1g_channels,
 };
 
+/* EU map */
 static const country_channel_map_t eu_channel_map = {
 	.country = "EU",
-	.num_mapped_channels = 8,
-	.ah_vals = {
-		/* 1Mhz */
-		{132, 1, 863.5, 0},
-		{136, 3, 864.5, 0},
-		{36, 5, 865.5, 0},
-		{40, 7, 866.5, 0},
-		{44, 9, 867.5, 0},
-		{120, 31, 916.9, 0},
-		{124, 33, 917.9, 0},
-		{128, 35, 918.9, 0},
-	}
+	.num_mapped_channels = ARRAY_SIZE(eu_s1g_channels),
+	.ah_vals = eu_s1g_channels,
 };
 
+/* IN map */
 static const country_channel_map_t in_channel_map = {
 	.country = "IN",
-	.num_mapped_channels = 3,
-	.ah_vals = {
-		/* 1Mhz */
-		{36, 5, 865.5, 0},
-		{40, 7, 866.5, 0},
-		{44, 9, 867.5, 0},
-	}
+	.num_mapped_channels = ARRAY_SIZE(in_s1g_channels),
+	.ah_vals = in_s1g_channels,
 };
 
+/* JP map */
 static const country_channel_map_t jp_channel_map = {
 	.country = "JP",
-	.num_mapped_channels = 11,
-	.ah_vals = {
-		/* 1 Mhz */
-		{36, 13, 923, 0},
-		{40, 15, 924, 0},
-		{44, 17, 925, 0},
-		{48, 19, 926, 0},
-		{64, 21, 927, 0},
-		/* 2Mhz */
-		{38, 2, 923.5, 1},
-		{46, 6, 925.5, 1},
-		{54, 4, 924.5, 1},
-		{62, 8, 926.5, 1},
-		/* 4Mhz */
-		{42, 36, 924.5, 2},
-		{58, 38, 925.5, 2},
-	}
+	.num_mapped_channels = ARRAY_SIZE(jp_s1g_channels),
+	.ah_vals = jp_s1g_channels,
 };
 
+/* KR map */
 static const country_channel_map_t kr_channel_map = {
 	.country = "KR",
-	.num_mapped_channels = 10,
-	.ah_vals = {
-		/* 1 Mhz */
-		{132, 1, 918, 0},
-		{136, 3, 919, 0},
-		{36, 5, 920, 0},
-		{40, 7, 921, 0},
-		{44, 9, 922, 0},
-		{48, 11, 923, 0},
-		/* 2Mhz */
-		{134, 2, 918.5, 1},
-		{38, 6, 920.5, 1},
-		{46, 10, 922.5, 1},
-		/* 4Mhz */
-		{42, 8, 921.5, 2},
-	}
+	.num_mapped_channels = ARRAY_SIZE(kr_s1g_channels),
+	.ah_vals = kr_s1g_channels,
 };
 
+/* SG map */
 static const country_channel_map_t sg_channel_map = {
 	.country = "SG",
-	.num_mapped_channels = 12,
-	.ah_vals = {
-		/* 1 Mhz */
-		{40, 7, 866.5, 0},
-		{44, 9, 867.5, 0},
-		{48, 11, 868.5, 0},
-		{149, 37, 920.5, 0},
-		{153, 39, 921.5, 0},
-		{157, 41, 922.5, 0},
-		{161, 43, 923.5, 0},
-		{165, 45, 924.5, 0},
-		/* 2Mhz */
-		{46, 10, 868, 1},
-		{151, 38, 921, 1},
-		{159, 42, 923, 1},
-		/* 4Mhz */
-		{155, 40, 922, 2}
-	}
+	.num_mapped_channels = ARRAY_SIZE(sg_s1g_channels),
+	.ah_vals = sg_s1g_channels,
+};
+
+static const country_channel_map_t ca_channel_map = {
+	.country = "CA",
+	.num_mapped_channels = ARRAY_SIZE(ca_s1g_channels),
+	.ah_vals = ca_s1g_channels,
 };
 
 static const country_channel_map_t channel_map_terminate = {
 	.country = {0,0,0},
 	.num_mapped_channels = 0,
-	.ah_vals = {}
+	.ah_vals = NULL,
 };
 
 static const country_channel_map_t *mapped_channel[] = {
@@ -254,6 +100,7 @@ static const country_channel_map_t *mapped_channel[] = {
 	&jp_channel_map,
 	&kr_channel_map,
 	&sg_channel_map,
+	&ca_channel_map,
 	&channel_map_terminate
 };
 
