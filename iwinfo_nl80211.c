@@ -4051,6 +4051,14 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 	for(char *p = buf; p < (buf + *len); p += fe_size){
 		fe = (struct iwinfo_freqlist_entry *) p;
 		ch_entry = get_s1g(g_map, fe->channel);
+
+		if (ch_entry->halow_channel == 0) {
+			// Workaround needed for SW-13784 (bad channels returned).
+			*len -= fe_size;
+			p -= fe_size;
+			continue;
+		}
+
 		fe->channel = ch_entry->halow_channel;
 		fe->mhz = get_freq(g_map, fe->channel)*1000;
 		fe->band = IWINFO_BAND_900;
