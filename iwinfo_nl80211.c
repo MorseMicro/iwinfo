@@ -29,6 +29,7 @@
 #include <fnmatch.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "iwinfo_nl80211.h"
 #include "iwinfo_morsecli.h"
@@ -4094,7 +4095,7 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 	return 0;
 }
 
-int dot11ah_freq_compare(const void *a, const void *b)
+static int dot11ah_freq_compare(const void *a, const void *b)
 {
 	const struct iwinfo_freqlist_entry *fe1 = (const struct iwinfo_freqlist_entry *) a;
 	const struct iwinfo_freqlist_entry *fe2 = (const struct iwinfo_freqlist_entry *) b;
@@ -4105,6 +4106,7 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 {
 	struct iwinfo_freqlist_entry *fe;
 	channel_to_halow_freq_t *ch_entry;
+	int bad_channels = 0;
 	const size_t fe_size = sizeof(struct iwinfo_freqlist_entry);
 	if(nl80211_get_freqlist(ifname, buf, len) < 0)
 		return -1;
@@ -4113,20 +4115,28 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 		fe = (struct iwinfo_freqlist_entry *) p;
 		ch_entry = get_s1g(g_map, fe->channel);
 
-		if (ch_entry->halow_channel == 0) {
-			// Workaround needed for SW-13784 (bad channels returned).
-			*len -= fe_size;
-			p -= fe_size;
-			continue;
-		}
-
 		fe->channel = ch_entry->halow_channel;
 		fe->mhz = get_freq(g_map, fe->channel)*1000;
 		fe->band = IWINFO_BAND_900;
 		fe->flags = 0;
+
+		if (fe->mhz <= 0) {
+			bad_channels += 1;
+		}
 	}
 
 	qsort(buf, *len/fe_size, fe_size, dot11ah_freq_compare);
+
+	if (bad_channels) {
+		// Workaround needed for SW-13784 (bad channels returned).
+		// Remove '0' frequency channels at start.
+		*len -= bad_channels * fe_size;
+
+		if (*len) {
+			memmove(buf, buf + bad_channels * fe_size, *len);
+		}
+	}
+
 	return 0;
 }
 
