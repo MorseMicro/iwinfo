@@ -202,6 +202,7 @@ const struct iwinfo_iso3166_label IWINFO_ISO3166_NAMES[] = {
 	{ 0x4552 /* ER */, "Eritrea" },
 	{ 0x4553 /* ES */, "Spain" },
 	{ 0x4554 /* ET */, "Ethiopia" },
+	{ 0x4555 /* EU */, "European Union" },  // Fake country; used by morse driver as region
 	{ 0x4649 /* FI */, "Finland" },
 	{ 0x464A /* FJ */, "Fiji" },
 	{ 0x464B /* FK */, "Falkland Islands" },
