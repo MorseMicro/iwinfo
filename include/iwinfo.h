@@ -19,8 +19,9 @@
 #include <net/if.h>
 #include <errno.h>
 
-
-#define IWINFO_BUFSIZE	24 * 1024
+// This buffer is used for assoclist which may return 8192 stations for 80211ah
+#define IWINFO_ASSOCLIST_BUFSIZE (8192 * (sizeof(struct iwinfo_assoclist_entry)))
+#define IWINFO_BUFSIZE 24 * 1024
 #define IWINFO_ESSID_MAX_SIZE	32
 
 enum iwinfo_80211 {
@@ -312,7 +313,7 @@ struct iwinfo_crypto_entry {
 	uint16_t pair_ciphers;
 	uint8_t auth_suites;
 	uint8_t auth_algs;
-	
+
 	/* RSNXE data */
 	uint8_t prot_twt:1;
 	uint8_t sae_h2e:1;

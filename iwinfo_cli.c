@@ -809,18 +809,23 @@ static void print_freqlist(const struct iwinfo_ops *iw, const char *ifname)
 static void print_assoclist(const struct iwinfo_ops *iw, const char *ifname)
 {
 	int i, len;
-	char buf[IWINFO_BUFSIZE];
 	struct iwinfo_assoclist_entry *e;
+	char *buf = malloc(IWINFO_ASSOCLIST_BUFSIZE);
+
+	if (!buf) {
+		printf("Memory error\n");
+		return;
+	}
 
 	if (iw->assoclist(ifname, buf, &len))
 	{
 		printf("No information available\n");
-		return;
+		goto err;
 	}
 	else if (len <= 0)
 	{
 		printf("No station connected\n");
-		return;
+		goto err;
 	}
 
 	for (i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry))
@@ -847,6 +852,9 @@ static void print_assoclist(const struct iwinfo_ops *iw, const char *ifname)
 		printf("	expected throughput: %s\n\n",
 			format_rate(e->thr));
 	}
+err:
+	free(buf);
+	return;
 }
 
 
