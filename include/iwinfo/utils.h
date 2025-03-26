@@ -74,4 +74,23 @@ void iwinfo_uci_free(void);
 int iwinfo_ubus_query(const char *ifname, const char *field,
                       char *buf, size_t len);
 
+/*
+For a 1 MHz Wi-Fi HaLow channel, the theoretical RSSI range can be from -120 dBm to +30 dBm. When two APs are
+placed next to each other, the chip may report a positive RSSI value. Based on discussions with the hardware team,
+the chip may report icorrect RSSI when the signal is too strong.
+However, the aim is to pass the recieved RSSI as is to the upper layer.
+
+The 'iwinfo' utility assumes RSSI will always be negative and maps (0) to (-256). It interprets positive
+RSSI values incorrectly and wraps them into a negative numbers. For example, a signal strength reported
+as 1 dBm to 30 dBm is incorrectly shown as -255 dBm to -226 dBm. This is because 'iwinfo' stores the signal
+ value as uint8_t, but while printing, it casts it to a signed value, leading to incorrect negative numbers.
+This API makes room for positive RSSI by converting into signed interger
+(128) to (256) maps to (-128) - (  0)
+(  0) to (127) maps to (   0) - (127)
+*/
+static inline int iwinfo_sanitise_rssi(uint8_t signal) {
+	if (signal < 128) return signal;
+	return (signal - 0x100);
+}
+
 #endif
