@@ -675,7 +675,6 @@ static void print_info(const struct iwinfo_ops *iw, const char *ifname)
 		print_phyname(iw, ifname));
 }
 
-
 static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 {
 	int i, x, len;
@@ -708,7 +707,7 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 			format_band(e->band),
 			format_channel(e->channel));
 		printf("          Signal: %s  Quality: %s/%s\n",
-			format_signal(e->signal - 0x100),
+			format_signal(iwinfo_sanitise_rssi(e->signal)),
 			format_quality(e->quality),
 			format_quality_max(e->quality_max));
 		printf("          Encryption: %s\n",

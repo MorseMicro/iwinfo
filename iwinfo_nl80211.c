@@ -3789,6 +3789,11 @@ static inline void _sanitise_rate_entry(struct iwinfo_rate_entry *re){
 	re->is_ht = 1;
 }
 
+// Hack to make 0dBm a valid rssi is to report -1 dBm
+static inline int8_t _sanitise_signal_entry(int8_t *rssi){
+	*rssi = ( (*rssi) == 0 ) ? -1 : (*rssi);
+	return *rssi;
+}
 
 /*
  * These fill_signal handlers need to be modified for s1g as they work per station.
@@ -3990,6 +3995,53 @@ static int dot11ah_get_bitrate(const char *ifname, int *buf)
 	return -1;
 }
 
+static int dot11ah_get_signal(const char *ifname, int *buf)
+{
+	struct nl80211_rssi_rate rr;
+
+	nl80211_fill_signal(ifname, &rr);
+
+	if (rr.rssi_samples)
+	{
+		*buf = _sanitise_signal_entry(&rr.rssi);
+		return 0;
+	}
+
+	return -1;
+}
+
+static int dot11ah_get_quality(const char *ifname, int *buf)
+{
+	int signal;
+
+	if (!dot11ah_get_signal(ifname, &signal))
+	{
+		/* A positive signal level is usually just a quality
+		 * value, pass through as-is */
+		if (signal >= 0)
+		{
+			*buf = signal;
+		}
+
+		/* The cfg80211 wext compat layer assumes a signal range
+		 * of -110 dBm to -40 dBm, the quality value is derived
+		 * by adding 110 to the signal level */
+		else
+		{
+			if (signal < -110)
+				signal = -110;
+			else if (signal > -40)
+				signal = -40;
+
+			*buf = (signal + 110);
+		}
+
+		return 0;
+	}
+
+	return -1;
+}
+
 static int dot11ah_get_hwmodelist(const char *ifname, int *buf)
 {
 	*buf = IWINFO_80211_AH;
@@ -4041,6 +4093,7 @@ static int dot11ah_get_assoclist(const char *ifname, char *buf, int *len)
 	{
 		ae = (struct iwinfo_assoclist_entry *) p;
 		ae->noise = noise;
+		_sanitise_signal_entry(&ae->signal);
 		_sanitise_rate_entry(&ae->rx_rate);
 		_sanitise_rate_entry(&ae->tx_rate);
 	}
@@ -4080,6 +4133,14 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 		se->ht_chan_info.primary_chan=0;
 		se->ah_chan_info.primary_chan=prim_chan->halow_channel;
 		se->ah_chan_info.chan_width=s1g_chan2bw(g_map, se->channel);
+
+		// Hack to make 0dBm a valid rssi is to report -1 dBm
+		if ( se->signal == 0 )
+		{
+			se->signal		= 255;
+			se->quality		= 70;
+			se->quality_max		= 70;
+		}
 
 		se->crypto.wpa_version |= 4;
 		if(se->crypto.sae_h2e == 1)
@@ -4469,9 +4530,9 @@ const struct iwinfo_ops dot11ah_ops = {
 	.txpower          = nl80211_get_txpower,
 	.txpower_offset   = nl80211_get_txpower_offset,
 	.bitrate          = dot11ah_get_bitrate,
-	.signal           = nl80211_get_signal,
+	.signal           = dot11ah_get_signal,
 	.noise            = dot11ah_get_noise,
-	.quality          = nl80211_get_quality,
+	.quality          = dot11ah_get_quality,
 	.quality_max      = nl80211_get_quality_max,
 	.mbssid_support   = nl80211_get_mbssid_support,
 	.hwmodelist       = dot11ah_get_hwmodelist,
