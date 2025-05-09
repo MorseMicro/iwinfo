@@ -922,11 +922,15 @@ static int __nl80211_hostapd_query(const char *ifname, ...)
 	if (!phy)
 		return 0;
 
-	snprintf(buf, sizeof(buf), "/var/run/hostapd-%s.conf", phy);
+	snprintf(buf, sizeof(buf), "/var/run/hostapd-%s-%s.conf", phy, ifname);
 	fp = fopen(buf, "r");
 
-	if (!fp)
-		return 0;
+	if (!fp) {
+		snprintf(buf, sizeof(buf), "/var/run/hostapd-%s.conf", phy);
+		fp = fopen(buf, "r");
+		if (!fp)
+			return 0;
+	}
 
 	va_start(ap, ifname);
 
