@@ -4144,32 +4144,57 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 	return 0;
 }
 
+static bool dot11ah_has_country(const char *countries, const char *country) {
+	while (countries[0] && countries[1]) {
+		if (countries[0] == country[0] && countries[1] == country[1]) {
+			return true;
+		}
+
+		if (countries[2] != ' ') {
+			break;
+		}
+
+		countries += 3;
+	}
+
+	return false;
+}
+
 static int dot11ah_get_countrylist(const char *ifname, char *buf, int *len)
 {
 	int count;
+	char *phy, path[PATH_MAX], countries[IWINFO_BUFSIZE];
+	const country_channel_map_t **halow_map;
 	struct iwinfo_country_entry *e = (struct iwinfo_country_entry *)buf;
 
-	const country_channel_map_t **halow_map = s1g_mapped_channel();
-	char higher='0',lower='0';
-	e->iso3166 = (int)higher*256+lower;
-	e->ccode[0] = '0';
-	e->ccode[1] = '0';
-	e->ccode[2] = 0;
-	e++;
-	count=1;
-	while((*halow_map)->country[0])
-	{
-		higher = (*halow_map)->country[0];
-		lower = (*halow_map)->country[1];
-		e->iso3166 = higher * 256 + lower;
-		e->ccode[0] = higher;
-		e->ccode[1] = lower;
-		e->ccode[2] = 0;
-		e++;
-		halow_map++;
-		count++;
+	phy = nl80211_ifname2phy(ifname);
+
+	if (!phy) {
+		*len = 0;
+		return 1;
 	}
-	*len = (count * sizeof(struct iwinfo_country_entry));
+
+	snprintf(path, sizeof(path), "/sys/class/ieee80211/%s/device/countries", phy);
+
+	if (nl80211_readstr(path, countries, sizeof(countries)) <= 0) {
+		countries[0] = '\0';
+	}
+
+	strcpy(e->ccode, "00");
+	e->iso3166 = (int)e->ccode[0] * 256 + e->ccode[1];
+	e++;
+
+	for (halow_map = s1g_mapped_channel(); (*halow_map)->country[0]; ++halow_map) {
+		if (countries[0] && !dot11ah_has_country(countries, (*halow_map)->country)) {
+			continue;
+		}
+
+		strcpy(e->ccode, (*halow_map)->country);
+		e->iso3166 = (int)e->ccode[0] * 256 + e->ccode[1];
+		++e;
+	}
+
+	*len = (char *)e - buf;
 	return 0;
 }
 
