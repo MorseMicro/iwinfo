@@ -51,6 +51,13 @@ static const country_channel_map_t eu_channel_map = {
 	.ah_vals = eu_s1g_channels,
 };
 
+/* GB map */
+static const country_channel_map_t gb_channel_map = {
+	.country = "GB",
+	.num_mapped_channels = ARRAY_SIZE(gb_s1g_channels),
+	.ah_vals = gb_s1g_channels,
+};
+
 /* IN map */
 static const country_channel_map_t in_channel_map = {
 	.country = "IN",
@@ -96,6 +103,7 @@ static const country_channel_map_t *mapped_channel[] = {
 	&au_channel_map,
 	&nz_channel_map,
 	&eu_channel_map,
+	&gb_channel_map,
 	&in_channel_map,
 	&jp_channel_map,
 	&kr_channel_map,
