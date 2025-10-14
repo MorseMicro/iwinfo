@@ -14,6 +14,23 @@
  * with the iwinfo library. If not, see http://www.gnu.org/licenses/.
 */
 
+/* These can be generated from the channels.csv in morse-regdb like:
+
+awk -F',' -v country=US '
+BEGIN {
+    prev = ""
+    bw_map[1] = 0
+    bw_map[2] = 1
+    bw_map[4] = 2
+    bw_map[8] = 3
+}
+$1 == country {
+    bw = $2
+    printf "	{%s, %s, %s, %d},\n", $16, $3, $6, bw_map[bw]
+}
+'
+*/
+
 #include "dot11ah_channel.h"
 
 /* US map */
@@ -72,8 +89,8 @@ static channel_to_halow_freq_t us_s1g_channels[] = {
 	{163, 44, 924, 3},
 };
 
-/* AU map */
-static channel_to_halow_freq_t au_s1g_channels[] = {
+/* AU 2020 (legacy) map */
+static channel_to_halow_freq_t au_2020_s1g_channels[] = {
 	/* 1Mhz */
 	{112, 27, 915.5, 0},
 	{116, 29, 916.5, 0},
@@ -101,6 +118,44 @@ static channel_to_halow_freq_t au_s1g_channels[] = {
 	{171, 48, 926, 2},
 	/* 8 Mhz */
 	{163, 44, 924, 3},
+};
+
+/* Australia 802.11-REVmf channels; 802.11-2024 + 3 extras */
+static channel_to_halow_freq_t au_revmf_s1g_channels[] = {
+	/* 1 MHz */
+	{36, 28, 916.0, 0},
+	{40, 30, 917.0, 0},
+	{44, 32, 918.0, 0},
+	{48, 34, 919.0, 0},
+	{52, 36, 920.0, 0},
+	{56, 38, 921.0, 0},
+	{60, 40, 922.0, 0},
+	{64, 42, 923.0, 0},
+	{116, 44, 924.0, 0},
+	{120, 46, 925.0, 0},
+	{124, 48, 926.0, 0},
+	{128, 50, 927.0, 0},
+	/* 2 MHz */
+	{38, 29, 916.5, 1},
+	{46, 33, 918.5, 1},
+	{54, 37, 920.5, 1},
+	{62, 41, 922.5, 1},
+	{118, 45, 924.5, 1},
+	{126, 49, 926.5, 1},
+	/* 4 MHz */
+	{42, 31, 917.5, 2},
+	{58, 39, 921.5, 2},
+	{122, 47, 925.5, 2},
+	/* 8 MHz */
+	{50, 35, 919.5, 3},
+	{114, 43, 923.5, 3},
+
+	/* These are the extra channels. */
+	/* 4 MHz */
+	{155, 51, 919.5, 2},
+	{171, 59, 923.5, 2},
+	/* 8 MHz */
+	{163, 55, 921.5, 3},
 };
 
 /* NZ map */
