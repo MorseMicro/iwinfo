@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "iwinfo_nl80211.h"
 #include "iwinfo_morsecli.h"
@@ -3774,18 +3775,6 @@ const struct iwinfo_ops nl80211_ops = {
 
 country_channel_map_t *g_map = NULL;
 
-static bool nl80211_is_halow(const char *ifname)
-{
-	const struct iwinfo_hardware_entry *e = nl80211_get_hardware_entry(ifname);
-	if (!e)
-		return false;
-
-	if (strcmp(e->vendor_name, "Morse Micro"))
-		return false;
-
-	return true;
-}
-
 static inline void _sanitise_rate_entry(struct iwinfo_rate_entry *re){
 	if(re == NULL)
 		return;
@@ -3916,14 +3905,37 @@ static void dot11ah_fill_signal(const char *ifname, struct nl80211_rssi_rate *r)
 
 static int dot11ah_probe(const char *ifname)
 {
-	if (!nl80211_ifname2phy(ifname))
+	char path[PATH_MAX];
+	char target[PATH_MAX];
+	int len;
+	const char *phy = nl80211_ifname2phy(ifname);
+
+	if (!phy)
 		return 0;
 
-	if (!nl80211_is_halow(ifname))
+	snprintf(path, sizeof(path), "/sys/class/ieee80211/%s/device/driver", phy);
+	len = readlink(path, target, sizeof(target) - 1);
+	if (len <= 0)
+		return 0;
+	target[len] = '\0';
+
+	if (strstr(target, "/morse_") == NULL)
 		return 0;
 
 	g_map = set_s1g_channel_map();
 	return 1;
+}
+
+static int dot11ah_get_hardware_name(const char *ifname, char *buf)
+{
+	const struct iwinfo_hardware_entry *hw;
+
+	if (!(hw = nl80211_get_hardware_entry(ifname)))
+		sprintf(buf, "Generic Morse Micro");
+	else
+		sprintf(buf, "%s %s", hw->vendor_name, hw->device_name);
+
+	return 0;
 }
 
 static int dot11ah_get_center_chan2(const char *ifname, int *buf)
@@ -4574,7 +4586,7 @@ const struct iwinfo_ops dot11ah_ops = {
 	.bssid            = nl80211_get_bssid,
 	.country          = dot11ah_get_country,
 	.hardware_id      = nl80211_get_hardware_id,
-	.hardware_name    = nl80211_get_hardware_name,
+	.hardware_name    = dot11ah_get_hardware_name,
 	.encryption       = dot11ah_get_encryption,
 	.phyname          = nl80211_get_phyname,
 	.assoclist        = dot11ah_get_assoclist,
