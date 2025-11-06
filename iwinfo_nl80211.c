@@ -3181,12 +3181,20 @@ static int nl80211_get_countrylist(const char *ifname, char *buf, int *len)
 	struct iwinfo_country_entry *e = (struct iwinfo_country_entry *)buf;
 	const struct iwinfo_iso3166_label *l;
 
-	for (l = IWINFO_ISO3166_NAMES, count = 0; l->iso3166; l++, e++, count++)
+	for (l = IWINFO_ISO3166_NAMES, count = 0; l->iso3166; l++)
 	{
+		if (l->iso3166 == 0x4555) {
+			/* Skip EU, as this is not a real country, not in wireless-regdb,
+			 * and was added to for dot11ah_get_countrylist.
+			 */
+			continue;
+		}
+
 		e->iso3166 = l->iso3166;
 		e->ccode[0] = (l->iso3166 / 256);
 		e->ccode[1] = (l->iso3166 % 256);
 		e->ccode[2] = 0;
+		++e; ++count;
 	}
 
 	*len = (count * sizeof(struct iwinfo_country_entry));
