@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <sys/un.h>
 #include <netlink/netlink.h>
+#include <netlink/attr.h>
 #include <netlink/genl/genl.h>
 #include <netlink/genl/family.h>
 #include <netlink/genl/ctrl.h>
