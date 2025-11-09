@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "iwinfo_nl80211.h"
 #include "iwinfo_morsecli.h"
@@ -1021,8 +1022,11 @@ static int nl80211_wpactl_connect(const char *ifname, struct sockaddr_un *local)
 		return sock;
 
 	remote.sun_family = AF_UNIX;
-	remote_length = sizeof(remote.sun_family) +
-		sprintf(remote.sun_path, "/var/run/wpa_supplicant/%s", ifname);
+	remote_length = sprintf(remote.sun_path, "/var/run/wpa_supplicant/%s", ifname);
+	if (access(remote.sun_path, F_OK) != 0) {
+		remote_length = sprintf(remote.sun_path, "/var/run/wpa_supplicant_s1g/%s", ifname);
+	}
+	remote_length += sizeof(remote.sun_family);
 
 	/* Set client socket file permissions so that bind() creates the client
 	* socket with these permissions and there is no need to try to change
@@ -2730,11 +2734,38 @@ static int nl80211_get_scanlist_cb(struct nl_msg *msg, void *arg)
 	return NL_SKIP;
 }
 
-static int nl80211_get_scanlist_nl(const char *ifname, char *buf, int *len)
+static int nl80211_trigger_scan_request(const char *ifname, bool active)
+{
+	struct nl80211_msg_conveyor *cv;
+	struct nlattr *ssids;
+
+	if (!active)
+		return nl80211_request(ifname, NL80211_CMD_TRIGGER_SCAN, 0, NULL, NULL);
+
+	cv = nl80211_msg(ifname, NL80211_CMD_TRIGGER_SCAN, 0);
+	if (!cv)
+		return -ENOMEM;
+
+	ssids = nla_nest_start(cv->msg, NL80211_ATTR_SCAN_SSIDS);
+	if (!ssids)
+		goto out;
+
+	if (nla_put(cv->msg, 1, 0, "") < 0)
+		goto out;
+
+	nla_nest_end(cv->msg, ssids);
+	return nl80211_send(cv, NULL, NULL);
+
+out:
+	nl80211_free(cv);
+	return -ENOBUFS;
+}
+
+static int nl80211_get_scanlist_nl(const char *ifname, char *buf, int *len, bool active)
 {
 	struct nl80211_scanlist sl = { .e = (struct iwinfo_scanlist_entry *)buf };
 
-	if (nl80211_request(ifname, NL80211_CMD_TRIGGER_SCAN, 0, NULL, NULL))
+	if (nl80211_trigger_scan_request(ifname, active))
 		goto out;
 
 	if (nl80211_wait("nl80211", "scan",
@@ -2967,9 +2998,10 @@ static int nl80211_get_scanlist_wpactl(const char *ifname, char *buf, int *len)
 	return (count >= 0) ? 0 : -1;
 }
 
-static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
+static int nl80211_get_scanlist(const char *ifname, char *buf, int *len, bool active)
 {
 	char *res;
+	static char path[PATH_MAX];
 	int rv, mode;
 
 	*len = 0;
@@ -2980,15 +3012,25 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
 		/* Reuse existing interface */
 		if ((res = nl80211_phy2ifname(ifname)) != NULL)
 		{
-			return nl80211_get_scanlist(res, buf, len);
+			return nl80211_get_scanlist(res, buf, len, active);
 		}
 
 		/* Need to spawn a temporary iface for scanning */
 		else if ((res = nl80211_ifadd(ifname)) != NULL)
 		{
-			rv = nl80211_get_scanlist(res, buf, len);
+			rv = nl80211_get_scanlist(res, buf, len, active);
 			nl80211_ifdel(res);
 			return rv;
+		}
+	}
+
+
+	/* If hostapd_s1g is up on this interface, do not do an active scan to minimise
+	 * disruption.
+	 */
+	if (sprintf(path, "/var/run/hostapd_s1g/%s", ifname)) {
+		if (access(path, F_OK) == 0) {
+			active = false;
 		}
 	}
 
@@ -3006,7 +3048,7 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
 	          mode == IWINFO_OPMODE_MONITOR) &&
 	         iwinfo_ifup(ifname))
 	{
-		return nl80211_get_scanlist_nl(ifname, buf, len);
+		return nl80211_get_scanlist_nl(ifname, buf, len, active);
 	}
 
 	/* AP scan */
@@ -3018,7 +3060,7 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
 			if (!iwinfo_ifup(ifname))
 				return -1;
 
-			rv = nl80211_get_scanlist_nl(ifname, buf, len);
+			rv = nl80211_get_scanlist_nl(ifname, buf, len, active);
 			iwinfo_ifdown(ifname);
 			return rv;
 		}
@@ -3035,7 +3077,7 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
 			 * additional interface and there's no need to tear down the ap */
 			if (iwinfo_ifup(res))
 			{
-				rv = nl80211_get_scanlist_nl(res, buf, len);
+				rv = nl80211_get_scanlist_nl(res, buf, len, active);
 				iwinfo_ifdown(res);
 			}
 
@@ -3043,7 +3085,7 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
 			 * during scan */
 			else if (iwinfo_ifdown(ifname) && iwinfo_ifup(res))
 			{
-				rv = nl80211_get_scanlist_nl(res, buf, len);
+				rv = nl80211_get_scanlist_nl(res, buf, len, active);
 				iwinfo_ifdown(res);
 				iwinfo_ifup(ifname);
 				nl80211_hostapd_hup(ifname);
@@ -3057,6 +3099,11 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len)
 	}
 
 	return -1;
+}
+
+static int nl80211_get_scanlist_default(const char *ifname, char *buf, int *len)
+{
+	return nl80211_get_scanlist(ifname, buf, len, false);
 }
 
 static int nl80211_get_freqlist_cb(struct nl_msg *msg, void *arg)
@@ -3703,7 +3750,7 @@ const struct iwinfo_ops nl80211_ops = {
 	.phyname          = nl80211_get_phyname,
 	.assoclist        = nl80211_get_assoclist,
 	.txpwrlist        = nl80211_get_txpwrlist,
-	.scanlist         = nl80211_get_scanlist,
+	.scanlist         = nl80211_get_scanlist_default,
 	.freqlist         = nl80211_get_freqlist,
 	.countrylist      = nl80211_get_countrylist,
 	.survey           = nl80211_get_survey,
@@ -4070,7 +4117,10 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 {
 	struct iwinfo_scanlist_entry *se;
 	channel_to_halow_freq_t *ch_entry, *prim_chan;
-	if(nl80211_get_scanlist(ifname, buf, len) < 0)
+
+	/* 802.11ah short beacons do not have RSN IEs, so we want an active scan.
+	 */
+	if (nl80211_get_scanlist(ifname, buf, len, true))
 		return -1;
 
 	for(char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_scanlist_entry)){
@@ -4107,15 +4157,22 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 			se->quality_max		= 70;
 		}
 
-		se->crypto.wpa_version |= 4;
-		if(se->crypto.sae_h2e == 1)
-			se->crypto.auth_suites |= IWINFO_KMGMT_SAE;
-		else
-			se->crypto.auth_suites |= IWINFO_KMGMT_OWE;
-		se->crypto.group_ciphers |= IWINFO_CIPHER_CCMP;
-		se->crypto.group_ciphers &= ~(IWINFO_CIPHER_WEP40 | IWINFO_CIPHER_WEP104);
-		se->crypto.pair_ciphers |= IWINFO_CIPHER_CCMP;
-		se->crypto.pair_ciphers &= ~(IWINFO_CIPHER_WEP40 | IWINFO_CIPHER_WEP104);
+		/* 802.11ah has short beacons that don't contain RSN IEs, so if
+		 * we haven't got a probe response or some other info (e.g. cached)
+		 * we may not have any useful encryption info.
+		 * In this case, report OWE and SAE as the other possible valid modes,
+		 * as this will not exclude the user from trying these (they may work!).
+		 * This will also remove the WEP stuff that was added in the standard
+		 * no encryption info fallbacks in nl80211_get_scanlist_cb, as these
+		 * are definitely not reasonable.
+		 */
+		if (se->crypto.enabled && !se->crypto.wpa_version) {
+			se->crypto.wpa_version = 4;
+			se->crypto.auth_algs = 0;
+			se->crypto.pair_ciphers = IWINFO_CIPHER_CCMP;
+			se->crypto.group_ciphers = IWINFO_CIPHER_CCMP;
+			se->crypto.auth_suites = IWINFO_KMGMT_SAE | IWINFO_KMGMT_OWE;
+		}
 	}
 
 	return 0;
@@ -4220,141 +4277,6 @@ static int dot11ah_get_countrylist(const char *ifname, char *buf, int *len)
 	return 0;
 }
 
-/*
- * modified function to look for the interface in wpa_supplicant_s1g
- */
-static int dot11ah_wpactl_connect(const char *ifname, struct sockaddr_un *local)
-{
-	struct sockaddr_un remote = { 0 };
-	size_t remote_length, local_length;
-
-	int sock = socket(PF_UNIX, SOCK_DGRAM, 0);
-	if (sock < 0)
-		return sock;
-
-	remote.sun_family = AF_UNIX;
-	remote_length = sizeof(remote.sun_family) +
-		sprintf(remote.sun_path, "/var/run/wpa_supplicant-%s/%s",
-		        ifname, ifname);
-
-	if (fcntl(sock, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC) < 0)
-	{
-		close(sock);
-		return -1;
-	}
-
-	if (connect(sock, (struct sockaddr *)&remote, remote_length))
-	{
-		remote_length = sizeof(remote.sun_family) +
-			sprintf(remote.sun_path, "/var/run/wpa_supplicant_s1g/%s", ifname);
-
-		if (connect(sock, (struct sockaddr *)&remote, remote_length))
-		{
-			close(sock);
-			return -1;
-		}
-	}
-
-	local->sun_family = AF_UNIX;
-	local_length = sizeof(local->sun_family) +
-		sprintf(local->sun_path, "/var/run/iwinfo-%s-%d", ifname, getpid());
-
-	if (bind(sock, (struct sockaddr *)local, local_length) < 0)
-	{
-		close(sock);
-		return -1;
-	}
-
-	return sock;
-}
-
-/* function copied as is from nl80211 version*/
-static int __dot11ah_wpactl_query(const char *ifname, ...)
-{
-	va_list ap, ap_cur;
-	struct sockaddr_un local = { 0 };
-	int len, mode, found = 0, sock = -1;
-	char *search, *dest, *key, *val, *line, *pos, buf[512];
-
-	if (nl80211_get_mode(ifname, &mode))
-		return 0;
-
-	if (mode != IWINFO_OPMODE_CLIENT &&
-	    mode != IWINFO_OPMODE_ADHOC &&
-	    mode != IWINFO_OPMODE_MESHPOINT)
-		return 0;
-
-	sock = dot11ah_wpactl_connect(ifname, &local);
-
-	if (sock < 0)
-		return 0;
-
-	va_start(ap, ifname);
-
-	/* clear all destination buffers */
-	va_copy(ap_cur, ap);
-
-	while ((search = va_arg(ap_cur, char *)) != NULL)
-	{
-		dest = va_arg(ap_cur, char *);
-		len  = va_arg(ap_cur, int);
-
-		memset(dest, 0, len);
-	}
-
-	va_end(ap_cur);
-
-	send(sock, "STATUS", 6, 0);
-
-	while (true)
-	{
-		if (nl80211_wpactl_recv(sock, buf, sizeof(buf)) <= 0)
-			break;
-
-		if (buf[0] == '<')
-			continue;
-
-		for (line = strtok_r(buf, "\n", &pos);
-			 line != NULL;
-			 line = strtok_r(NULL, "\n", &pos))
-		{
-			key = strtok(line, "=");
-			val = strtok(NULL, "\n");
-
-			if (!key || !val)
-				continue;
-
-			va_copy(ap_cur, ap);
-
-			while ((search = va_arg(ap_cur, char *)) != NULL)
-			{
-				dest = va_arg(ap_cur, char *);
-				len  = va_arg(ap_cur, int);
-
-				if (!strcmp(search, key))
-				{
-					strncpy(dest, val, len - 1);
-					found++;
-					break;
-				}
-			}
-
-			va_end(ap_cur);
-		}
-
-		break;
-	}
-
-	va_end(ap);
-
-	close(sock);
-	unlink(local.sun_path);
-
-	return found;
-}
-
-#define dot11ah_wpactl_query(ifname, ...) \
-	__dot11ah_wpactl_query(ifname, ##__VA_ARGS__, NULL)
 
 /* function copied as is from nl80211 version*/
 static int dot11ah_get_encryption(const char *ifname, char *buf)
@@ -4370,7 +4292,7 @@ static int dot11ah_get_encryption(const char *ifname, char *buf)
 	struct iwinfo_crypto_entry *c = (struct iwinfo_crypto_entry *)buf;
 
 	/* WPA supplicant */
-	if (dot11ah_wpactl_query(ifname,
+	if (nl80211_wpactl_query(ifname,
 			"pairwise_cipher", wpa_pairwise,  sizeof(wpa_pairwise),
 			"group_cipher",    wpa_groupwise, sizeof(wpa_groupwise),
 			"key_mgmt",        wpa_key_mgmt,  sizeof(wpa_key_mgmt),
