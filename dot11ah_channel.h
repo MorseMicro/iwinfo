@@ -80,14 +80,6 @@ float get_freq(country_channel_map_t *map, int channel);
 int s1g_rate(int fiveG_rate, int frq_mhz);
 
 /**
- * converts s1g frequency to s1g channel
- * @param map a map of 5g to s1g channels retrieved by set_s1g_channel_map
- * @param freq s1g frequency in KHz
- * @return s1g channel
- */
-int s1g_freq2channel(country_channel_map_t *map,int freq);
-
-/**
  * converts s1g channel to s1g bandwidth
  * @param map a map of 5g to s1g channels retrieved by set_s1g_channel_map
  * @param channel s1g channel

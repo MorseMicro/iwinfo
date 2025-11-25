@@ -42,6 +42,12 @@
 
 static struct nl80211_state *nls = NULL;
 
+static enum scanmode {
+	SCANMODE_DEFAULT,  /* prefer wpactl, then nl80211 passive */
+	SCANMODE_PASSIVE,  /* nl80211 passive */
+	SCANMODE_ACTIVE,   /* nl80211 active */
+};
+
 static void nl80211_close(void)
 {
 	if (nls)
@@ -2998,11 +3004,11 @@ static int nl80211_get_scanlist_wpactl(const char *ifname, char *buf, int *len)
 	return (count >= 0) ? 0 : -1;
 }
 
-static int nl80211_get_scanlist(const char *ifname, char *buf, int *len, bool active)
+static int nl80211_get_scanlist(const char *ifname, char *buf, int *len, enum scanmode scanmode)
 {
 	char *res;
-	static char path[PATH_MAX];
 	int rv, mode;
+	bool active;
 
 	*len = 0;
 
@@ -3012,30 +3018,22 @@ static int nl80211_get_scanlist(const char *ifname, char *buf, int *len, bool ac
 		/* Reuse existing interface */
 		if ((res = nl80211_phy2ifname(ifname)) != NULL)
 		{
-			return nl80211_get_scanlist(res, buf, len, active);
+			return nl80211_get_scanlist(res, buf, len, scanmode);
 		}
 
 		/* Need to spawn a temporary iface for scanning */
 		else if ((res = nl80211_ifadd(ifname)) != NULL)
 		{
-			rv = nl80211_get_scanlist(res, buf, len, active);
+			rv = nl80211_get_scanlist(res, buf, len, scanmode);
 			nl80211_ifdel(res);
 			return rv;
 		}
 	}
 
-
-	/* If hostapd_s1g is up on this interface, do not do an active scan to minimise
-	 * disruption.
-	 */
-	if (sprintf(path, "/var/run/hostapd_s1g/%s", ifname)) {
-		if (access(path, F_OK) == 0) {
-			active = false;
-		}
-	}
+	active = scanmode == SCANMODE_ACTIVE;
 
 	/* WPA supplicant */
-	if (!nl80211_get_scanlist_wpactl(ifname, buf, len))
+	if (scanmode == SCANMODE_DEFAULT && !nl80211_get_scanlist_wpactl(ifname, buf, len))
 	{
 		return 0;
 	}
@@ -4115,42 +4113,67 @@ static int dot11ah_get_assoclist(const char *ifname, char *buf, int *len)
 
 static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 {
+	static char path[PATH_MAX];
 	struct iwinfo_scanlist_entry *se;
-	channel_to_halow_freq_t *ch_entry, *prim_chan;
-
 	/* 802.11ah short beacons do not have RSN IEs, so we want an active scan.
+	 * Also, the wpactl results do not include the VHT info which we need to determine
+	 * the actual channel/frequency.
 	 */
-	if (nl80211_get_scanlist(ifname, buf, len, true))
+	enum scanmode scanmode = SCANMODE_ACTIVE;
+	/* If hostapd_s1g is up on this interface, do a passive scan to minimise
+	 * disruption.
+	 */
+	if (sprintf(path, "/var/run/hostapd_s1g/%s", ifname) && access(path, F_OK) == 0) {
+		scanmode = SCANMODE_PASSIVE;
+	}
+
+	if (nl80211_get_scanlist(ifname, buf, len, scanmode))
 		return -1;
 
-	for(char *p = buf; p < (buf + *len); p += sizeof(struct iwinfo_scanlist_entry)){
-		se = (struct iwinfo_scanlist_entry *) p;
-
-		ch_entry = get_s1g(g_map, se->channel);
-		prim_chan = get_s1g(g_map, se->ht_chan_info.primary_chan);
-		se->channel = ch_entry->halow_channel;
+	for (se = (struct iwinfo_scanlist_entry *)buf; se < (struct iwinfo_scanlist_entry *)(buf + *len); ++se) {
 		se->band = IWINFO_BAND_900;
-		se->mhz = get_freq(g_map, se->channel)*1000;
 
-		if (se->vht_chan_info.center_chan_1)
-		{
-			ch_entry = get_s1g(g_map, se->vht_chan_info.center_chan_1);
-			se->channel = ch_entry->halow_channel;
-			se->vht_chan_info.center_chan_1 = 0;
-		}else if(se->ht_chan_info.secondary_chan_off == 1)
-		{
-			se->channel += 1;
-		}else if(se->ht_chan_info.secondary_chan_off == 3)
-		{
-			se->channel -= 1;
+		/* Always report 1MHz primary for simplicity here. */
+		se->ah_chan_info.primary_chan = get_s1g(g_map, se->channel)->halow_channel;
+
+		if (se->vht_chan_info.center_chan_1) {
+			se->channel = get_s1g(g_map, se->vht_chan_info.center_chan_1)->halow_channel;
+			se->mhz = get_freq(g_map, se->channel) * 1000;
+		} else {
+			/* If we don't have center_chan_1, we don't attempt to report a primary channel
+			 * (even though strictly speaking we could derive this from the ht_chan_info).
+			 * We don't expect this to happen on current versions of the driver, as the VHT
+			 * Operation IE should be filled even for 1MHz/2MHz channels.
+			 */
+			se->channel = 0;
+			/* We don't have mhz since we're missing the main channel, but let's put in
+			 * the primary channel mhz for some idea.
+			 */
+			se->mhz = get_freq(g_map, se->ah_chan_info.primary_chan) * 1000;
 		}
-		se->ht_chan_info.secondary_chan_off=0;
-		se->ht_chan_info.primary_chan=0;
-		se->ah_chan_info.primary_chan=prim_chan->halow_channel;
-		se->ah_chan_info.chan_width=s1g_chan2bw(g_map, se->channel);
 
-		// Hack to make 0dBm a valid rssi is to report -1 dBm
-		if ( se->signal == 0 )
+		/* For unclear reasons,
+		 * 0=1Mhz, 1=2MHz, 2=4MHz, 3=8MHz, 4=16MHz
+		 */
+		switch (se->vht_chan_info.chan_width) {
+		case 0:
+			/* NB if there is no ht_chan_info/vht_chan_info, this means we report 1MHz */
+			se->ah_chan_info.chan_width = se->ht_chan_info.secondary_chan_off ? 1 : 0;
+			break;
+		case 1:
+			se->ah_chan_info.chan_width = 2;
+			break;
+		case 2:
+			se->ah_chan_info.chan_width = 3;
+			break;
+		}
+
+		/* Clear chan info that we've mapped to ah_chan_info */
+		memset(&(se->vht_chan_info), 0, sizeof(se->vht_chan_info));
+		memset(&(se->ht_chan_info), 0, sizeof(se->ht_chan_info));
+
+		/* Hack to make 0dBm a valid rssi is to report -1 dBm */
+		if (se->signal == 0)
 		{
 			se->signal		= 255;
 			se->quality		= 70;
@@ -4241,7 +4264,6 @@ static bool dot11ah_has_country(const char *countries, const char *country) {
 
 static int dot11ah_get_countrylist(const char *ifname, char *buf, int *len)
 {
-	int count;
 	char *phy, path[PATH_MAX], countries[IWINFO_BUFSIZE];
 	const country_channel_map_t **halow_map;
 	struct iwinfo_country_entry *e = (struct iwinfo_country_entry *)buf;

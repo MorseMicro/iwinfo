@@ -254,20 +254,6 @@ int s1g_rate(int fiveG_rate, int frq_mhz)
     return fiveG_rate / scale;
 }
 
-int s1g_freq2channel(country_channel_map_t *map,int freq)//frq in khz
-{
-	if(map == NULL)
-		return 0;
-
-	for(int i=0; i< map->num_mapped_channels; i++)
-	{
-		if ((int)(map->ah_vals[i].halow_freq * 1000) == freq)
-			return map->ah_vals[i].halow_channel;
-	}
-
-	return 0;
-}
-
 int s1g_chan2bw(country_channel_map_t *map,int channel)//bw in MHz
 {
 	if(map == NULL)
