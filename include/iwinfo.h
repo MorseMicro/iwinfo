@@ -344,17 +344,10 @@ struct iwinfo_scanlist_vht_chan_entry {
 	uint8_t center_chan_2;
 };
 
-struct iwinfo_scanlist_ah_chan_entry {
+struct iwinfo_scanlist_s1g_chan_entry {
 	uint8_t primary_chan;
+	uint8_t center_chan;
 	uint8_t chan_width;
-};
-
-static uint16_t ah_chan_width[] = {
-	1,  /* 1 MHz*/
-	2,  /* 2 MHz*/
-	4,  /* 4 MHz*/
-	8,  /* 8 MHz*/
-	16, /* 16 MHz*/
 };
 
 extern const char * const ht_secondary_offset[4];
@@ -380,7 +373,7 @@ struct iwinfo_scanlist_entry {
 	struct iwinfo_crypto_entry crypto;
 	struct iwinfo_scanlist_ht_chan_entry ht_chan_info;
 	struct iwinfo_scanlist_vht_chan_entry vht_chan_info;
-	struct iwinfo_scanlist_ah_chan_entry ah_chan_info;
+	struct iwinfo_scanlist_s1g_chan_entry s1g_chan_info;
 };
 
 struct iwinfo_country_entry {

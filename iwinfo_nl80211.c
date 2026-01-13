@@ -2661,6 +2661,12 @@ static void nl80211_get_scanlist_ie(struct nlattr **bss,
 			break;
 		case 244: /* RSNXE */
 			iwinfo_parse_rsnxe(&e->crypto, ie + 2, ie[1]);
+		case 232: /* S1G operation */
+			if (ie[1] == 6) {
+				e->s1g_chan_info.chan_width = ((ie[2] & 0x1e) >> 1) + 1;
+				e->s1g_chan_info.primary_chan = ie[4];
+				e->s1g_chan_info.center_chan = ie[5];
+			}
 			break;
 		}
 
@@ -4218,7 +4224,7 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 		se->band = IWINFO_BAND_900;
 
 		/* Always report 1MHz primary for simplicity here. */
-		se->ah_chan_info.primary_chan = get_s1g(g_map, se->channel)->halow_channel;
+		se->s1g_chan_info.primary_chan = get_s1g(g_map, se->channel)->halow_channel;
 
 		if (se->vht_chan_info.center_chan_1) {
 			se->channel = get_s1g(g_map, se->vht_chan_info.center_chan_1)->halow_channel;
@@ -4233,26 +4239,23 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 			/* We don't have mhz since we're missing the main channel, but let's put in
 			 * the primary channel mhz for some idea.
 			 */
-			se->mhz = get_freq(g_map, se->ah_chan_info.primary_chan) * 1000;
+			se->mhz = get_freq(g_map, se->s1g_chan_info.primary_chan) * 1000;
 		}
 
-		/* For unclear reasons,
-		 * 0=1Mhz, 1=2MHz, 2=4MHz, 3=8MHz, 4=16MHz
-		 */
 		switch (se->vht_chan_info.chan_width) {
 		case 0:
 			/* NB if there is no ht_chan_info/vht_chan_info, this means we report 1MHz */
-			se->ah_chan_info.chan_width = se->ht_chan_info.secondary_chan_off ? 1 : 0;
+			se->s1g_chan_info.chan_width = se->ht_chan_info.secondary_chan_off ? 2 : 1;
 			break;
 		case 1:
-			se->ah_chan_info.chan_width = 2;
+			se->s1g_chan_info.chan_width = 4;
 			break;
 		case 2:
-			se->ah_chan_info.chan_width = 3;
+			se->s1g_chan_info.chan_width = 8;
 			break;
 		}
 
-		/* Clear chan info that we've mapped to ah_chan_info */
+		/* Clear chan info that we've mapped to s1g_chan_info */
 		memset(&(se->vht_chan_info), 0, sizeof(se->vht_chan_info));
 		memset(&(se->ht_chan_info), 0, sizeof(se->ht_chan_info));
 
