@@ -2239,7 +2239,8 @@ enum nl80211_commands {
  * @NL80211_ATTR_PEER_AID: Association ID for the peer TDLS station (u16).
  *	This is similar to @NL80211_ATTR_STA_AID but with a difference of being
  *	allowed to be used with the first @NL80211_CMD_SET_STATION command to
- *	update a TDLS peer STA entry.
+ *	update a TDLS peer STA entry. For S1G interfaces, this is limited to
+ *	1600 for the current mac80211 implementation.
  *
  * @NL80211_ATTR_COALESCE_RULE: Coalesce rule information.
  *
@@ -2815,6 +2816,51 @@ enum nl80211_commands {
  * @NL80211_ATTR_MLO_LINK_DISABLED: Flag attribute indicating that the link is
  *	disabled.
  *
+ * @NL80211_ATTR_BSS_DUMP_INCLUDE_USE_DATA: Include BSS usage data, i.e.
+ *	include BSSes that can only be used in restricted scenarios and/or
+ *	cannot be used at all.
+ *
+ * @NL80211_ATTR_MLO_TTLM_DLINK: Binary attribute specifying the downlink TID to
+ *      link mapping. The length is 8 * sizeof(u16). For each TID the link
+ *      mapping is as defined in section 9.4.2.314 (TID-To-Link Mapping element)
+ *      in Draft P802.11be_D4.0.
+ * @NL80211_ATTR_MLO_TTLM_ULINK: Binary attribute specifying the uplink TID to
+ *      link mapping. The length is 8 * sizeof(u16). For each TID the link
+ *      mapping is as defined in section 9.4.2.314 (TID-To-Link Mapping element)
+ *      in Draft P802.11be_D4.0.
+ *
+ * @NL80211_ATTR_ASSOC_SPP_AMSDU: flag attribute used with
+ *	%NL80211_CMD_ASSOCIATE indicating the SPP A-MSDUs
+ *	are used on this connection
+ *
+ * @NL80211_ATTR_WIPHY_RADIOS: Nested attribute describing physical radios
+ *	belonging to this wiphy. See &enum nl80211_wiphy_radio_attrs.
+ *
+ * @NL80211_ATTR_WIPHY_INTERFACE_COMBINATIONS: Nested attribute listing the
+ *	supported interface combinations for all radios combined. In each
+ *	nested item, it contains attributes defined in
+ *	&enum nl80211_if_combination_attrs.
+ *
+ * @NL80211_ATTR_VIF_RADIO_MASK: Bitmask of allowed radios (u32).
+ *	A value of 0 means all radios.
+ *
+ * @NL80211_ATTR_S1G_LONG_BEACON_PERIOD: (u8) Integer attribute that represents
+ *	the number of beacon intervals between each long beacon transmission
+ *	for an S1G BSS with short beaconing enabled. This is a required
+ *	attribute for initialising an S1G short beaconing BSS. When updating
+ *	the short beacon data, this is not required. It has a minimum value of
+ *	2 (i.e 2 beacon intervals).
+ *
+ * @NL80211_ATTR_S1G_SHORT_BEACON: Nested attribute containing the short beacon
+ *	head and tail used to set or update the short beacon templates. When
+ *	bringing up a new interface, %NL80211_ATTR_S1G_LONG_BEACON_PERIOD is
+ *	required alongside this attribute. Refer to
+ *	@enum nl80211_s1g_short_beacon_attrs for the attribute definitions.
+ *
+ * @NL80211_ATTR_S1G_PRIMARY_2MHZ: flag attribute indicating that the S1G
+ *	primary channel is 2 MHz wide, and the control channel designates
+ *	the 1 MHz primary subchannel within that 2 MHz primary.
+ *
  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
  * @NL80211_ATTR_MAX: highest attribute number currently defined
  * @__NL80211_ATTR_AFTER_LAST: internal use
@@ -3352,6 +3398,23 @@ enum nl80211_attrs {
 	NL80211_ATTR_EMA_RNR_ELEMS,
 
 	NL80211_ATTR_MLO_LINK_DISABLED,
+
+	NL80211_ATTR_BSS_DUMP_INCLUDE_USE_DATA,
+
+	NL80211_ATTR_MLO_TTLM_DLINK,
+	NL80211_ATTR_MLO_TTLM_ULINK,
+
+	NL80211_ATTR_ASSOC_SPP_AMSDU,
+
+	NL80211_ATTR_WIPHY_RADIOS,
+	NL80211_ATTR_WIPHY_INTERFACE_COMBINATIONS,
+
+	NL80211_ATTR_VIF_RADIO_MASK,
+
+	NL80211_ATTR_S1G_LONG_BEACON_PERIOD,
+	NL80211_ATTR_S1G_SHORT_BEACON,
+
+	NL80211_ATTR_S1G_PRIMARY_2MHZ,
 
 	/* add attributes here, update the policy in nl80211.c */
 
@@ -4213,6 +4276,30 @@ enum nl80211_wmm_rule {
  *	as the primary or any of the secondary channels isn't possible
  * @NL80211_FREQUENCY_ATTR_NO_EHT: EHT operation is not allowed on this channel
  *	in current regulatory domain.
+ * @NL80211_FREQUENCY_ATTR_PSD: Power spectral density (in dBm) that
+ *	is allowed on this channel in current regulatory domain.
+ * @NL80211_FREQUENCY_ATTR_DFS_CONCURRENT: Operation on this channel is
+ *	allowed for peer-to-peer or adhoc communication under the control
+ *	of a DFS master which operates on the same channel (FCC-594280 D01
+ *	Section B.3). Should be used together with %NL80211_RRF_DFS only.
+ * @NL80211_FREQUENCY_ATTR_NO_6GHZ_VLP_CLIENT: Client connection to VLP AP
+ *	not allowed using this channel
+ * @NL80211_FREQUENCY_ATTR_NO_6GHZ_AFC_CLIENT: Client connection to AFC AP
+ *	not allowed using this channel
+ * @NL80211_FREQUENCY_ATTR_CAN_MONITOR: This channel can be used in monitor
+ *	mode despite other (regulatory) restrictions, even if the channel is
+ *	otherwise completely disabled.
+ * @NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP: This channel can be used for a
+ *	very low power (VLP) AP, despite being NO_IR.
+ * @NL80211_FREQUENCY_ATTR_NO_4MHZ: 4 MHz operation is not allowed on this
+ *	channel in current regulatory domain.
+ * @NL80211_FREQUENCY_ATTR_NO_8MHZ: 8 MHz operation is not allowed on this
+ *	channel in current regulatory domain.
+ * @NL80211_FREQUENCY_ATTR_NO_16MHZ: 16 MHz operation is not allowed on this
+ *	channel in current regulatory domain.
+ * @NL80211_FREQUENCY_ATTR_S1G_NO_PRIMARY: Channel is not permitted for use
+ *	as a primary channel. Does not prevent the channel from existing
+ *	as a non-primary subchannel.
  * @NL80211_FREQUENCY_ATTR_MAX: highest frequency attribute number
  *	currently defined
  * @__NL80211_FREQUENCY_ATTR_AFTER_LAST: internal use
@@ -4251,6 +4338,16 @@ enum nl80211_frequency_attr {
 	NL80211_FREQUENCY_ATTR_16MHZ,
 	NL80211_FREQUENCY_ATTR_NO_320MHZ,
 	NL80211_FREQUENCY_ATTR_NO_EHT,
+	NL80211_FREQUENCY_ATTR_PSD,
+	NL80211_FREQUENCY_ATTR_DFS_CONCURRENT,
+	NL80211_FREQUENCY_ATTR_NO_6GHZ_VLP_CLIENT,
+	NL80211_FREQUENCY_ATTR_NO_6GHZ_AFC_CLIENT,
+	NL80211_FREQUENCY_ATTR_CAN_MONITOR,
+	NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP,
+	NL80211_FREQUENCY_ATTR_NO_4MHZ,
+	NL80211_FREQUENCY_ATTR_NO_8MHZ,
+	NL80211_FREQUENCY_ATTR_NO_16MHZ,
+	NL80211_FREQUENCY_ATTR_S1G_NO_PRIMARY,
 
 	/* keep last */
 	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
@@ -7851,6 +7948,82 @@ enum nl80211_mbssid_config_attributes {
 enum nl80211_ap_settings_flags {
 	NL80211_AP_SETTINGS_EXTERNAL_AUTH_SUPPORT	= 1 << 0,
 	NL80211_AP_SETTINGS_SA_QUERY_OFFLOAD_SUPPORT	= 1 << 1,
+};
+
+/**
+ * enum nl80211_wiphy_radio_attrs - wiphy radio attributes
+ *
+ * @__NL80211_WIPHY_RADIO_ATTR_INVALID: Invalid
+ *
+ * @NL80211_WIPHY_RADIO_ATTR_INDEX: Index of this radio (u32)
+ * @NL80211_WIPHY_RADIO_ATTR_FREQ_RANGE: Frequency range supported by this
+ *	radio. Attribute may be present multiple times.
+ * @NL80211_WIPHY_RADIO_ATTR_INTERFACE_COMBINATION: Supported interface
+ *	combination for this radio. Attribute may be present multiple times
+ *	and contains attributes defined in &enum nl80211_if_combination_attrs.
+ * @NL80211_WIPHY_RADIO_ATTR_ANTENNA_MASK: bitmask (u32) of antennas
+ *	connected to this radio.
+ *
+ * @__NL80211_WIPHY_RADIO_ATTR_LAST: Internal
+ * @NL80211_WIPHY_RADIO_ATTR_MAX: Highest attribute
+ */
+enum nl80211_wiphy_radio_attrs {
+	__NL80211_WIPHY_RADIO_ATTR_INVALID,
+
+	NL80211_WIPHY_RADIO_ATTR_INDEX,
+	NL80211_WIPHY_RADIO_ATTR_FREQ_RANGE,
+	NL80211_WIPHY_RADIO_ATTR_INTERFACE_COMBINATION,
+	NL80211_WIPHY_RADIO_ATTR_ANTENNA_MASK,
+
+	/* keep last */
+	__NL80211_WIPHY_RADIO_ATTR_LAST,
+	NL80211_WIPHY_RADIO_ATTR_MAX = __NL80211_WIPHY_RADIO_ATTR_LAST - 1,
+};
+
+/**
+ * enum nl80211_wiphy_radio_freq_range - wiphy radio frequency range
+ *
+ * @__NL80211_WIPHY_RADIO_FREQ_ATTR_INVALID: Invalid
+ *
+ * @NL80211_WIPHY_RADIO_FREQ_ATTR_START: Frequency range start (u32).
+ *	The unit is kHz.
+ * @NL80211_WIPHY_RADIO_FREQ_ATTR_END: Frequency range end (u32).
+ *	The unit is kHz.
+ *
+ * @__NL80211_WIPHY_RADIO_FREQ_ATTR_LAST: Internal
+ * @NL80211_WIPHY_RADIO_FREQ_ATTR_MAX: Highest attribute
+ */
+enum nl80211_wiphy_radio_freq_range {
+	__NL80211_WIPHY_RADIO_FREQ_ATTR_INVALID,
+
+	NL80211_WIPHY_RADIO_FREQ_ATTR_START,
+	NL80211_WIPHY_RADIO_FREQ_ATTR_END,
+
+	__NL80211_WIPHY_RADIO_FREQ_ATTR_LAST,
+	NL80211_WIPHY_RADIO_FREQ_ATTR_MAX = __NL80211_WIPHY_RADIO_FREQ_ATTR_LAST - 1,
+};
+
+/**
+ * enum nl80211_s1g_short_beacon_attrs - S1G short beacon data
+ *
+ * @__NL80211_S1G_SHORT_BEACON_ATTR_INVALID: Invalid
+ *
+ * @NL80211_S1G_SHORT_BEACON_ATTR_HEAD: Short beacon head (binary).
+ * @NL80211_S1G_SHORT_BEACON_ATTR_TAIL: Short beacon tail (binary).
+ *
+ * @__NL80211_S1G_SHORT_BEACON_ATTR_LAST: Internal
+ * @NL80211_S1G_SHORT_BEACON_ATTR_MAX: Highest attribute
+ */
+enum nl80211_s1g_short_beacon_attrs {
+	__NL80211_S1G_SHORT_BEACON_ATTR_INVALID,
+
+	NL80211_S1G_SHORT_BEACON_ATTR_HEAD,
+	NL80211_S1G_SHORT_BEACON_ATTR_TAIL,
+
+	/* keep last */
+	__NL80211_S1G_SHORT_BEACON_ATTR_LAST,
+	NL80211_S1G_SHORT_BEACON_ATTR_MAX =
+		__NL80211_S1G_SHORT_BEACON_ATTR_LAST - 1
 };
 
 #endif /* __LINUX_NL80211_H */
