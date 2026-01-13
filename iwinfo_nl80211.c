@@ -3174,6 +3174,14 @@ static int nl80211_get_freqlist_cb(struct nl_msg *msg, void *arg)
 						e->flags |= IWINFO_FREQ_NO_IR;
 					if (freqs[NL80211_FREQUENCY_ATTR_INDOOR_ONLY])
 						e->flags |= IWINFO_FREQ_INDOOR_ONLY;
+					if (freqs[NL80211_FREQUENCY_ATTR_NO_4MHZ])
+						e->flags |= IWINFO_FREQ_NO_4MHZ;
+					if (freqs[NL80211_FREQUENCY_ATTR_NO_8MHZ])
+						e->flags |= IWINFO_FREQ_NO_8MHZ;
+					if (freqs[NL80211_FREQUENCY_ATTR_NO_16MHZ])
+						e->flags |= IWINFO_FREQ_NO_16MHZ;
+					if (freqs[NL80211_FREQUENCY_ATTR_S1G_NO_PRIMARY])
+						e->flags |= IWINFO_FREQ_S1G_NO_PRIMARY;
 
 					/* keep backwards compatibility */
 					e->restricted = (e->flags & IWINFO_FREQ_NO_IR) ? 1 : 0;
