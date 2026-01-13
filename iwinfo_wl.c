@@ -158,7 +158,7 @@ static int wl_get_center_chan2(const char *ifname, int *buf)
 
 static int wl_get_frequency(const char *ifname, int *buf)
 {
-	return wext_ops.frequency(ifname, buf);
+	return MHZ_TO_KHZ(wext_ops.frequency(ifname, buf));
 }
 
 static int wl_get_txpower(const char *ifname, int *buf)

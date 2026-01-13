@@ -73,8 +73,10 @@ static char * format_frequency(int freq)
 
 	if (freq <= 0)
 		snprintf(buf, sizeof(buf), "unknown");
+	else if (freq < MHZ_TO_KHZ(1000))
+		snprintf(buf, sizeof(buf), "%.3f MHz", (float)freq / 1000.0);
 	else
-		snprintf(buf, sizeof(buf), "%.3f %s", ((float)freq / 1000.0), freq > 500000 ? "MHz" : "GHz");
+		snprintf(buf, sizeof(buf), "%.3f GHz", ((float)freq / 1000000.0));
 
 	return buf;
 }
@@ -447,10 +449,14 @@ static char * print_frequency_offset(const struct iwinfo_ops *iw, const char *if
 
 	if (iw->frequency_offset(ifname, &off))
 		snprintf(buf, sizeof(buf), "unknown");
-	else if (off != 0)
-		snprintf(buf, sizeof(buf), "%.3f GHz", ((float)off / 1000.0));
-	else
+	else if (off == 0)
 		snprintf(buf, sizeof(buf), "none");
+	else if (off < 1000)
+		snprintf(buf, sizeof(buf), "%d kHz", off);
+	else if (off < MHZ_TO_KHZ(1000))
+		snprintf(buf, sizeof(buf), "%.3f MHz", ((float)off / 1000.0));
+	else
+		snprintf(buf, sizeof(buf), "%.3f GHz", ((float)off / 1000000.0));
 
 	return buf;
 }
@@ -710,7 +716,7 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 			format_ssid(e->ssid));
 		printf("          Mode: %s  Frequency: %s  Band: %s  Channel: %s\n",
 			IWINFO_OPMODE_NAMES[e->mode],
-			format_frequency(e->mhz),
+			format_frequency(MHZ_TO_KHZ(e->mhz) + e->offset),
 			format_band(e->band),
 			format_channel(e->channel));
 		printf("          Signal: %s  Quality: %s/%s\n",
@@ -806,7 +812,7 @@ static void print_freqlist(const struct iwinfo_ops *iw, const char *ifname)
 
 		printf("%s %s (Band: %s, Channel %s) %s\n",
 			(freq == e->mhz) ? "*" : " ",
-			format_frequency(e->mhz),
+			format_frequency(MHZ_TO_KHZ(e->mhz) + e->offset),
 			format_band(e->band),
 			format_channel(e->channel),
 			format_freqflags(e->flags));

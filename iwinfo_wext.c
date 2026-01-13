@@ -219,7 +219,7 @@ static int wext_get_frequency(const char *ifname, int *buf)
 				{
 					if( range.freq[i].i == channel )
 					{
-						*buf = wext_freq2mhz(&range.freq[i]);
+						*buf = MHZ_TO_KHZ(wext_freq2mhz(&range.freq[i]));
 						return 0;
 					}
 				}
@@ -227,7 +227,7 @@ static int wext_get_frequency(const char *ifname, int *buf)
 		}
 		else
 		{
-			*buf = wext_freq2mhz(&wrq.u.freq);
+			*buf = MHZ_TO_KHZ(wext_freq2mhz(&wrq.u.freq));
 			return 0;
 		}
 	}
@@ -395,6 +395,7 @@ static int wext_get_freqlist(const char *ifname, char *buf, int *len)
 		for(i = 0; i < range.num_frequency; i++)
 		{
 			entry.mhz        = wext_freq2mhz(&range.freq[i]);
+			entry.offset     = 0;
 			entry.channel    = range.freq[i].i;
 			entry.restricted = 0;
 

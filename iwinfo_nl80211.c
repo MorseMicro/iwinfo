@@ -697,21 +697,40 @@ static int __nl80211_wait(const char *family, const char *group, ...)
  */
 static int nl80211_freq2channel(int freq)
 {
-	if (freq == 2484)
+	if (freq < 1000000)
+	{
+		/*
+		* S1G channels are region-dependent,
+		* so resolving channel index from frequency
+		* requires investigating the frequency
+		* to determine region
+		*/
+		if (freq > 902000) {
+			/* Check for US freq offset */
+			if (!(freq % 500))
+				return (freq - 902000) / 500;
+			/* Otherwise use the EU freq offset */
+			return (freq - 901400) / 500;
+		} else {
+			return (freq - 863000) / 500;
+		}
+	}
+
+	if (freq == MHZ_TO_KHZ(2484))
 		return 14;
-	else if (freq < 2484)
-		return (freq - 2407) / 5;
-	else if (freq >= 4910 && freq <= 4980)
-		return (freq - 4000) / 5;
-	else if (freq < 5925)
-		return (freq - 5000) / 5;
-	else if (freq == 5935)
+	else if (freq < MHZ_TO_KHZ(2484))
+		return (freq - MHZ_TO_KHZ(2407)) / MHZ_TO_KHZ(5);
+	else if (freq >= MHZ_TO_KHZ(4910) && freq <= MHZ_TO_KHZ(4980))
+		return (freq - MHZ_TO_KHZ(4000)) / MHZ_TO_KHZ(5);
+	else if (freq < MHZ_TO_KHZ(5925))
+		return (freq - MHZ_TO_KHZ(5000)) / MHZ_TO_KHZ(5);
+	else if (freq == MHZ_TO_KHZ(5935))
 		return 2;
-	else if (freq <= 45000) /* DMG band lower limit */
+	else if (freq <= MHZ_TO_KHZ(45000)) /* DMG band lower limit */
 		/* see 802.11ax D6.1 27.3.22.2 */
-		return (freq - 5950) / 5;
-	else if (freq >= 58320 && freq <= 70200)
-		return (freq - 56160) / 2160;
+		return (freq - MHZ_TO_KHZ(5950)) / MHZ_TO_KHZ(5);
+	else if (freq >= MHZ_TO_KHZ(58320) && freq <= MHZ_TO_KHZ(70200))
+		return (freq - MHZ_TO_KHZ(56160)) / MHZ_TO_KHZ(2160);
 	else
 		return 0;
 }
@@ -731,28 +750,28 @@ static int nl80211_channel2freq(int channel, const char *band, bool ax)
 	if (!band || band[0] != 'a')
 	{
 		if (channel == 14)
-			return 2484;
+			return MHZ_TO_KHZ(2484);
 		else if (channel < 14)
-			return (channel * 5) + 2407;
+			return MHZ_TO_KHZ((channel * 5) + 2407);
 	}
 	else if (strcmp(band, "ad")  == 0)
 	{
 		if (channel < 7)
-			return 56160 + 2160 * channel;
+			return MHZ_TO_KHZ(56160 + 2160 * channel);
 	}
 	else if (ax)
 	{
 		if (channel == 2)
-			return 5935;
+			return MHZ_TO_KHZ(5935);
 		if (channel < 233)
-			return (channel * 5) + 5950;
+			return MHZ_TO_KHZ((channel * 5) + 5950);
 	}
 	else
 	{
 		if (channel >= 182 && channel <= 196)
-			return (channel * 5) + 4000;
+			return MHZ_TO_KHZ((channel * 5) + 4000);
 		else
-			return (channel * 5) + 5000;
+			return MHZ_TO_KHZ((channel * 5) + 5000);
 	}
 
 	return 0;
@@ -760,15 +779,15 @@ static int nl80211_channel2freq(int channel, const char *band, bool ax)
 
 static uint8_t nl80211_freq2band(int freq)
 {
-	if (freq < 1000)
+	if (freq < MHZ_TO_KHZ(1000))
 		return IWINFO_BAND_900;
-	else if (freq >= 2412 && freq <= 2484)
+	else if (freq >= MHZ_TO_KHZ(2412) && freq <= MHZ_TO_KHZ(2484))
 		return IWINFO_BAND_24;
-	else if (freq >= 5160 && freq <= 5885)
+	else if (freq >= MHZ_TO_KHZ(5160) && freq <= MHZ_TO_KHZ(5885))
 		return IWINFO_BAND_5;
-	else if (freq >= 5925 && freq <= 7125)
+	else if (freq >= MHZ_TO_KHZ(5925) && freq <= MHZ_TO_KHZ(7125))
 		return IWINFO_BAND_6;
-	else if (freq >= 58320 && freq <= 69120)
+	else if (freq >= MHZ_TO_KHZ(58320) && freq <= MHZ_TO_KHZ(69120))
 		return IWINFO_BAND_60;
 
 	return 0;
@@ -1400,8 +1419,9 @@ static int nl80211_get_frequency_scan_cb(struct nl_msg *msg, void *arg)
 	struct nlattr *binfo[NL80211_BSS_MAX + 1];
 
 	static const struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
-		[NL80211_BSS_FREQUENCY] = { .type = NLA_U32 },
-		[NL80211_BSS_STATUS]    = { .type = NLA_U32 },
+		[NL80211_BSS_FREQUENCY]        = { .type = NLA_U32 },
+		[NL80211_BSS_STATUS]           = { .type = NLA_U32 },
+		[NL80211_BSS_FREQUENCY_OFFSET] = { .type = NLA_U32 },
 	};
 
 	if (attr[NL80211_ATTR_BSS] &&
@@ -1409,7 +1429,10 @@ static int nl80211_get_frequency_scan_cb(struct nl_msg *msg, void *arg)
 	                      attr[NL80211_ATTR_BSS], bss_policy))
 	{
 		if (binfo[NL80211_BSS_STATUS] && binfo[NL80211_BSS_FREQUENCY])
-			*freq = nla_get_u32(binfo[NL80211_BSS_FREQUENCY]);
+			*freq = MHZ_TO_KHZ(nla_get_u32(binfo[NL80211_BSS_FREQUENCY]));
+
+		if (binfo[NL80211_BSS_FREQUENCY_OFFSET])
+			*freq += nla_get_u32(binfo[NL80211_BSS_FREQUENCY_OFFSET]);
 	}
 
 	return NL_SKIP;
@@ -1421,7 +1444,10 @@ static int nl80211_get_frequency_info_cb(struct nl_msg *msg, void *arg)
 	struct nlattr **tb = nl80211_parse(msg);
 
 	if (tb[NL80211_ATTR_WIPHY_FREQ])
-		*freq = nla_get_u32(tb[NL80211_ATTR_WIPHY_FREQ]);
+		*freq = MHZ_TO_KHZ(nla_get_u32(tb[NL80211_ATTR_WIPHY_FREQ]));
+
+	if (tb[NL80211_ATTR_WIPHY_FREQ_OFFSET])
+		*freq += nla_get_u32(tb[NL80211_ATTR_WIPHY_FREQ_OFFSET]);
 
 	return NL_SKIP;
 }
@@ -1443,7 +1469,7 @@ static int nl80211_get_frequency(const char *ifname, int *buf)
 	                                  "channel", channel, sizeof(channel),
 	                                  "ieee80211ax", ax, sizeof(ax)) >= 2)
 	{
-		*buf = nl80211_channel2freq(atoi(channel), hwmode, ax[0] == '1');
+		*buf = MHZ_TO_KHZ(nl80211_channel2freq(atoi(channel), hwmode, ax[0] == '1'));
 	}
 
 	/* failed, try to find frequency from scan results */
@@ -1464,7 +1490,10 @@ static int nl80211_get_center_freq1_cb(struct nl_msg *msg, void *arg)
 	struct nlattr **tb = nl80211_parse(msg);
 
 	if (tb[NL80211_ATTR_CENTER_FREQ1])
-		*freq = nla_get_u32(tb[NL80211_ATTR_CENTER_FREQ1]);
+		*freq = MHZ_TO_KHZ(nla_get_u32(tb[NL80211_ATTR_CENTER_FREQ1]));
+
+	if (tb[NL80211_ATTR_CENTER_FREQ1_OFFSET])
+		*freq += nla_get_u32(tb[NL80211_ATTR_CENTER_FREQ1_OFFSET]);
 
 	return NL_SKIP;
 }
@@ -1489,7 +1518,7 @@ static int nl80211_get_center_freq2_cb(struct nl_msg *msg, void *arg)
 	struct nlattr **tb = nl80211_parse(msg);
 
 	if (tb[NL80211_ATTR_CENTER_FREQ2])
-		*freq = nla_get_u32(tb[NL80211_ATTR_CENTER_FREQ2]);
+		*freq = MHZ_TO_KHZ(nla_get_u32(tb[NL80211_ATTR_CENTER_FREQ2]));
 
 	return NL_SKIP;
 }
@@ -1691,8 +1720,9 @@ static int nl80211_get_noise_cb(struct nl_msg *msg, void *arg)
 	struct nlattr *si[NL80211_SURVEY_INFO_MAX + 1];
 
 	static const struct nla_policy sp[NL80211_SURVEY_INFO_MAX + 1] = {
-		[NL80211_SURVEY_INFO_FREQUENCY] = { .type = NLA_U32 },
-		[NL80211_SURVEY_INFO_NOISE]     = { .type = NLA_U8  },
+		[NL80211_SURVEY_INFO_FREQUENCY]        = { .type = NLA_U32 },
+		[NL80211_SURVEY_INFO_NOISE]            = { .type = NLA_U8  },
+		[NL80211_SURVEY_INFO_FREQUENCY_OFFSET] = { .type = NLA_U8  },
 	};
 
 	if (!tb[NL80211_ATTR_SURVEY_INFO])
@@ -2198,6 +2228,7 @@ static int nl80211_get_survey_cb(struct nl_msg *msg, void *arg)
 		[NL80211_SURVEY_INFO_TIME_EXT_BUSY] = { .type = NLA_U64   },
 		[NL80211_SURVEY_INFO_TIME_RX] = { .type = NLA_U64   },
 		[NL80211_SURVEY_INFO_TIME_TX] = { .type = NLA_U64   },
+		[NL80211_SURVEY_INFO_FREQUENCY_OFFSET] = { .type = NLA_U32 },
 	};
 
 	rc = nla_parse_nested(sinfo, NL80211_SURVEY_INFO_MAX,
@@ -2230,6 +2261,9 @@ static int nl80211_get_survey_cb(struct nl_msg *msg, void *arg)
 
 	if (sinfo[NL80211_SURVEY_INFO_TIME_TX])
 		e->txtime = nla_get_u64(sinfo[NL80211_SURVEY_INFO_TIME_TX]);
+
+	if (sinfo[NL80211_SURVEY_INFO_FREQUENCY_OFFSET])
+		e->offset = nla_get_u32(sinfo[NL80211_SURVEY_INFO_FREQUENCY_OFFSET]);
 
 	arr->count++;
 	return NL_SKIP;
@@ -2503,7 +2537,7 @@ static int nl80211_get_assoclist(const char *ifname, char *buf, int *len)
 static int nl80211_get_txpwrlist_cb(struct nl_msg *msg, void *arg)
 {
 	int *dbm_max = arg;
-	int ch_cur, ch_cmp, bands_remain, freqs_remain;
+	int ch_cur, ch_cmp, bands_remain, freqs_remain, freq_khz;
 
 	struct nlattr **attr = nl80211_parse(msg);
 	struct nlattr *bands[NL80211_BAND_ATTR_MAX + 1];
@@ -2517,6 +2551,7 @@ static int nl80211_get_txpwrlist_cb(struct nl_msg *msg, void *arg)
 		[NL80211_FREQUENCY_ATTR_NO_IBSS]      = { .type = NLA_FLAG },
 		[NL80211_FREQUENCY_ATTR_RADAR]        = { .type = NLA_FLAG },
 		[NL80211_FREQUENCY_ATTR_MAX_TX_POWER] = { .type = NLA_U32  },
+		[NL80211_FREQUENCY_ATTR_OFFSET]       = { .type = NLA_U32  },
 	};
 
 	ch_cur = *dbm_max; /* value int* is initialized with channel by caller */
@@ -2532,8 +2567,12 @@ static int nl80211_get_txpwrlist_cb(struct nl_msg *msg, void *arg)
 			nla_parse(freqs, NL80211_FREQUENCY_ATTR_MAX,
 			          nla_data(freq), nla_len(freq), freq_policy);
 
-			ch_cmp = nl80211_freq2channel(nla_get_u32(
-				freqs[NL80211_FREQUENCY_ATTR_FREQ]));
+			freq_khz = MHZ_TO_KHZ(nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_FREQ]));
+
+			if (freqs[NL80211_FREQUENCY_ATTR_OFFSET])
+				freq_khz += nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_OFFSET]);
+
+			ch_cmp = nl80211_freq2channel(freq_khz);
 
 			if ((!ch_cur || (ch_cmp == ch_cur)) &&
 			    freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER])
@@ -2714,6 +2753,7 @@ static int nl80211_get_scanlist_cb(struct nl_msg *msg, void *arg)
 		[NL80211_BSS_STATUS]               = { .type = NLA_U32 },
 		[NL80211_BSS_SEEN_MS_AGO]          = { .type = NLA_U32 },
 		[NL80211_BSS_BEACON_IES]           = { 0 },
+		[NL80211_BSS_FREQUENCY_OFFSET]     = { .type = NLA_U32 },
 	};
 
 	if (!tb[NL80211_ATTR_BSS] ||
@@ -2745,8 +2785,9 @@ static int nl80211_get_scanlist_cb(struct nl_msg *msg, void *arg)
 	if (bss[NL80211_BSS_FREQUENCY])
 	{
 		sl->e->mhz = nla_get_u32(bss[NL80211_BSS_FREQUENCY]);
-		sl->e->band = nl80211_freq2band(sl->e->mhz);
-		sl->e->channel = nl80211_freq2channel(sl->e->mhz);
+		sl->e->offset = bss[NL80211_BSS_FREQUENCY_OFFSET] ? nla_get_u32(bss[NL80211_BSS_FREQUENCY_OFFSET]) : 0;
+		sl->e->band = nl80211_freq2band(MHZ_TO_KHZ(sl->e->mhz) + sl->e->offset);
+		sl->e->channel = nl80211_freq2channel(MHZ_TO_KHZ(sl->e->mhz) + sl->e->offset);
 	}
 
 	if (bss[NL80211_BSS_INFORMATION_ELEMENTS])
@@ -2999,8 +3040,10 @@ static int nl80211_get_scanlist_wpactl(const char *ifname, char *buf, int *len)
 
 			/* Channel */
 			e->mhz = atoi(freq);
-			e->band = nl80211_freq2band(e->mhz);
-			e->channel = nl80211_freq2channel(e->mhz);
+			/* TODO: There is currently no offset reported by wpa_cli */
+			e->offset = 0;
+			e->band = nl80211_freq2band(MHZ_TO_KHZ(e->mhz));
+			e->channel = nl80211_freq2channel(MHZ_TO_KHZ(e->mhz));
 
 			/* Signal */
 			rssi = atoi(signal);
@@ -3177,7 +3220,10 @@ static int nl80211_get_freqlist_cb(struct nl_msg *msg, void *arg)
 
 					e->band = nl80211_get_band(band->nla_type);
 					e->mhz = nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_FREQ]);
-					e->channel = nl80211_freq2channel(e->mhz);
+					e->offset = freqs[NL80211_FREQUENCY_ATTR_OFFSET]
+						    ? nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_OFFSET])
+						    : 0;
+					e->channel = nl80211_freq2channel(MHZ_TO_KHZ(e->mhz) + e->offset);
 
 					if (freqs[NL80211_FREQUENCY_ATTR_NO_HT40_MINUS])
 						e->flags |= IWINFO_FREQ_NO_HT40MINUS;
@@ -3788,7 +3834,7 @@ static int nl80211_get_frequency_offset(const char *ifname, int *buf)
 	if (!(hw = nl80211_get_hardware_entry(ifname)))
 		return -1;
 
-	*buf = hw->frequency_offset;
+	*buf = MHZ_TO_KHZ(hw->frequency_offset);
 	return 0;
 }
 
@@ -4246,7 +4292,8 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 
 		if (se->vht_chan_info.center_chan_1) {
 			se->channel = get_s1g(g_map, se->vht_chan_info.center_chan_1)->halow_channel;
-			se->mhz = get_freq(g_map, se->channel) * 1000;
+			se->mhz = (int) get_freq(g_map, se->channel);
+			se->offset = (get_freq(g_map, se->channel) - se->mhz) * 1000;
 		} else {
 			/* If we don't have center_chan_1, we don't attempt to report a primary channel
 			 * (even though strictly speaking we could derive this from the ht_chan_info).
@@ -4257,7 +4304,8 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 			/* We don't have mhz since we're missing the main channel, but let's put in
 			 * the primary channel mhz for some idea.
 			 */
-			se->mhz = get_freq(g_map, se->s1g_chan_info.primary_chan) * 1000;
+			se->mhz = (int) get_freq(g_map, se->s1g_chan_info.primary_chan);
+			se->offset = (get_freq(g_map, se->channel) - se->mhz) * 1000;
 		}
 
 		switch (se->vht_chan_info.chan_width) {
@@ -4310,7 +4358,7 @@ static int dot11ah_freq_compare(const void *a, const void *b)
 {
 	const struct iwinfo_freqlist_entry *fe1 = (const struct iwinfo_freqlist_entry *) a;
 	const struct iwinfo_freqlist_entry *fe2 = (const struct iwinfo_freqlist_entry *) b;
-	return ( fe1->mhz - fe2->mhz );
+	return ( fe1->mhz - fe2->mhz ) || (fe1->offset - fe2->offset);
 }
 
 static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
@@ -4327,7 +4375,8 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 		ch_entry = get_s1g(g_map, fe->channel);
 
 		fe->channel = ch_entry->halow_channel;
-		fe->mhz = get_freq(g_map, fe->channel)*1000;
+		fe->mhz = (int) get_freq(g_map, fe->channel);
+		fe->offset = (get_freq(g_map, fe->channel) - fe->mhz) * 1000;
 		fe->band = IWINFO_BAND_900;
 		fe->flags = 0;
 

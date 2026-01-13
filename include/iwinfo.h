@@ -24,6 +24,9 @@
 #define IWINFO_BUFSIZE 24 * 1024
 #define IWINFO_ESSID_MAX_SIZE	32
 
+#define MHZ_TO_KHZ(freq) ((freq) * 1000)
+#define KHZ_TO_MHZ(freq) ((freq) / 1000)
+
 enum iwinfo_80211 {
 	IWINFO_80211_A = 0,
 	IWINFO_80211_B,
@@ -299,6 +302,7 @@ struct iwinfo_survey_entry {
 	uint64_t rxtime;
 	uint64_t txtime;
 	uint32_t mhz;
+	uint32_t offset;
 	uint8_t noise;
 };
 
@@ -311,6 +315,7 @@ struct iwinfo_freqlist_entry {
 	uint8_t band;
 	uint8_t channel;
 	uint32_t mhz;
+	uint32_t offset;
 	uint8_t restricted;
 	uint32_t flags;
 };
@@ -368,6 +373,7 @@ struct iwinfo_scanlist_entry {
 	uint8_t band;
 	uint8_t channel;
 	uint32_t mhz;
+	uint32_t offset;
 	uint8_t signal;
 	uint8_t quality;
 	uint8_t quality_max;

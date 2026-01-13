@@ -412,7 +412,7 @@ static int madwifi_get_frequency(const char *ifname, int *buf)
 
 	if( madwifi_wrq(&wrq, ifname, SIOCGIWFREQ, NULL, 0) >= 0 )
 	{
-		*buf = (uint16_t)(wrq.u.freq.m / 100000);
+		*buf = MHZ_TO_KHZ(uint16_t)(wrq.u.freq.m / 100000);
 		return 0;
 	}
 
@@ -929,6 +929,7 @@ static int madwifi_get_freqlist(const char *ifname, char *buf, int *len)
 		for( i = 0; i < chans.ic_nchans; i++ )
 		{
 			entry.mhz        = chans.ic_chans[i].ic_freq;
+			entry.offset     = 0;
 			entry.channel    = chans.ic_chans[i].ic_ieee;
 			entry.restricted = 0;
 
@@ -1115,7 +1116,7 @@ static int madwifi_get_frequency_offset(const char *ifname, int *buf)
 	if (!(hw = madwifi_get_hardware_entry(ifname)))
 		return -1;
 
-	*buf = hw->frequency_offset;
+	*buf = MHZ_TO_KHZ(hw->frequency_offset);
 	return 0;
 }
 
