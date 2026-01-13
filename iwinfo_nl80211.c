@@ -176,6 +176,8 @@ static int nl80211_get_band(int nla_type)
 		return IWINFO_BAND_6;
 	case NL80211_BAND_60GHZ:
 		return IWINFO_BAND_60;
+	case NL80211_BAND_S1GHZ:
+		return IWINFO_BAND_900;
 	}
 
 	return 0;
@@ -758,7 +760,9 @@ static int nl80211_channel2freq(int channel, const char *band, bool ax)
 
 static uint8_t nl80211_freq2band(int freq)
 {
-	if (freq >= 2412 && freq <= 2484)
+	if (freq < 1000)
+		return IWINFO_BAND_900;
+	else if (freq >= 2412 && freq <= 2484)
 		return IWINFO_BAND_24;
 	else if (freq >= 5160 && freq <= 5885)
 		return IWINFO_BAND_5;
@@ -3315,6 +3319,12 @@ static void nl80211_eval_modelist(struct nl80211_modes *m)
 			m->ht |= IWINFO_HTMODE_EHT320;
 	}
 
+	if (m->bands & IWINFO_BAND_900)
+	{
+		m->hw |= IWINFO_80211_AH;
+		m->ht |= IWINFO_HTMODE_NOHT;
+	}
+
 	if (m->bands & IWINFO_BAND_24)
 	{
 		m->hw |= IWINFO_80211_B;
@@ -3539,6 +3549,11 @@ static int nl80211_get_htmode(const char *ifname, int *buf)
 	case NL80211_CHAN_WIDTH_320:
 		*buf = IWINFO_HTMODE_EHT320;
 		break;
+	case NL80211_CHAN_WIDTH_1:
+	case NL80211_CHAN_WIDTH_2:
+	case NL80211_CHAN_WIDTH_4:
+	case NL80211_CHAN_WIDTH_8:
+	case NL80211_CHAN_WIDTH_16:
 	case NL80211_CHAN_WIDTH_5:
 	case NL80211_CHAN_WIDTH_10:
 	case NL80211_CHAN_WIDTH_20_NOHT:
