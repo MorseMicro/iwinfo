@@ -2106,7 +2106,15 @@ static void nl80211_parse_rateinfo(struct nlattr **ri,
 	else if (ri[NL80211_RATE_INFO_BITRATE])
 		re->rate = nla_get_u16(ri[NL80211_RATE_INFO_BITRATE]) * 100;
 
-	if (ri[NL80211_RATE_INFO_EHT_MCS])
+	if (ri[NL80211_RATE_INFO_S1G_MCS])
+	{
+		re->is_s1g = 1;
+		re->mcs = nla_get_u8(ri[NL80211_RATE_INFO_S1G_MCS]);
+
+		if (ri[NL80211_RATE_INFO_S1G_NSS])
+			re->nss = nla_get_u8(ri[NL80211_RATE_INFO_S1G_NSS]);
+	}
+	else if (ri[NL80211_RATE_INFO_EHT_MCS])
 	{
 		re->is_eht = 1;
 		re->mcs = nla_get_u8(ri[NL80211_RATE_INFO_EHT_MCS]);
@@ -2155,6 +2163,16 @@ static void nl80211_parse_rateinfo(struct nlattr **ri,
 		re->mhz = 160;
 	else if (ri[NL80211_RATE_INFO_320_MHZ_WIDTH])
 		re->mhz_hi = 320 / 256, re->mhz = 320 % 256;
+	else if (ri[NL80211_RATE_INFO_1_MHZ_WIDTH])
+		re->mhz = 1;
+	else if (ri[NL80211_RATE_INFO_2_MHZ_WIDTH])
+		re->mhz = 2;
+	else if (ri[NL80211_RATE_INFO_4_MHZ_WIDTH])
+		re->mhz = 4;
+	else if (ri[NL80211_RATE_INFO_8_MHZ_WIDTH])
+		re->mhz = 8;
+	else if (ri[NL80211_RATE_INFO_16_MHZ_WIDTH])
+		re->mhz = 16;
 	else
 		re->mhz = 20;
 

@@ -297,7 +297,15 @@ static char * format_assocrate(struct iwinfo_rate_entry *r)
 		p += snprintf(p, l, "%s", format_rate(r->rate));
 		l = sizeof(buf) - (p - buf);
 
-		if (r->is_ht)
+		if (r->is_s1g)
+		{
+			p += snprintf(p, l, ", S1G-MCS %d, %dMHz", r->mcs, r->mhz);
+			l = sizeof(buf) - (p - buf);
+
+			p += snprintf(p, l, ", S1G-NSS %d", r->nss);
+			l = sizeof(buf) - (p - buf);
+		}
+		else if (r->is_ht)
 		{
 			p += snprintf(p, l, ", MCS %d, %dMHz", r->mcs, r->mhz);
 			l = sizeof(buf) - (p - buf);

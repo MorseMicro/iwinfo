@@ -282,6 +282,9 @@ static void set_rateinfo(lua_State *L, struct iwinfo_rate_entry *r, bool rx)
 	lua_pushboolean(L, r->is_eht);
 	lua_setfield(L, -2, rx ? "rx_eht" : "tx_eht");
 
+	lua_pushboolean(L, r->is_s1g);
+	lua_setfield(L, -2, rx ? "rx_s1g" : "tx_s1g");
+
 	lua_pushnumber(L, r->mhz_hi * 256 + r->mhz);
 	lua_setfield(L, -2, rx ? "rx_mhz" : "tx_mhz");
 
@@ -296,7 +299,7 @@ static void set_rateinfo(lua_State *L, struct iwinfo_rate_entry *r, bool rx)
 		lua_pushboolean(L, r->is_short_gi);
 		lua_setfield(L, -2, rx ? "rx_short_gi" : "tx_short_gi");
 	}
-	else if (r->is_vht || r->is_he | r->is_eht)
+	else if (r->is_vht || r->is_he || r->is_eht || r->is_s1g)
 	{
 		lua_pushnumber(L, r->mcs);
 		lua_setfield(L, -2, rx ? "rx_mcs" : "tx_mcs");
@@ -317,7 +320,7 @@ static void set_rateinfo(lua_State *L, struct iwinfo_rate_entry *r, bool rx)
 			lua_setfield(L, -2, rx ? "rx_eht_gi" : "tx_eht_gi");
 		}
 
-		if (r->is_vht) {
+		if (r->is_vht || r->is_s1g) {
 			lua_pushboolean(L, r->is_short_gi);
 			lua_setfield(L, -2, rx ? "rx_short_gi" : "tx_short_gi");
 		}

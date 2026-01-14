@@ -251,6 +251,7 @@ struct iwinfo_rate_entry {
 	uint8_t is_vht:1;
 	uint8_t is_he:1;
 	uint8_t is_eht:1;
+	uint8_t is_s1g:1;
 	uint8_t he_gi;
 	uint8_t he_dcm;
 	uint8_t mhz;
