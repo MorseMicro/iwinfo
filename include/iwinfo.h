@@ -413,6 +413,12 @@ struct iwinfo_hardware_entry {
 	char compatible[128];
 };
 
+enum iwinfo_width_type {
+	IWINFO_WIDTH_HT,
+	IWINFO_WIDTH_VHT,
+	IWINFO_WIDTH_MHZ,
+};
+
 extern const struct iwinfo_iso3166_label IWINFO_ISO3166_NAMES[];
 
 #define IWINFO_HARDWARE_FILE	"/usr/share/libiwinfo/devices.txt"

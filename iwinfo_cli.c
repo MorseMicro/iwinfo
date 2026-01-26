@@ -353,15 +353,15 @@ static char * format_assocrate(struct iwinfo_rate_entry *r)
 	return buf;
 }
 
-static const char* format_chan_width(bool vht, uint8_t width)
+static const char* format_chan_width(enum iwinfo_width_type width_type, uint8_t width)
 {
-	if (!vht && width < ARRAY_SIZE(ht_chan_width))
+	if (width_type == IWINFO_WIDTH_HT && width < ARRAY_SIZE(ht_chan_width))
 		switch (ht_chan_width[width]) {
 			case 20: return "20 MHz";
 			case 2040: return "40 MHz or higher";
 		}
 
-	if (vht && width < ARRAY_SIZE(vht_chan_width))
+	if (width_type == IWINFO_WIDTH_VHT && width < ARRAY_SIZE(vht_chan_width))
 		switch (vht_chan_width[width]) {
 			case 40: return "20 or 40 MHz";
 			case 80: return "80 MHz";
@@ -369,17 +369,10 @@ static const char* format_chan_width(bool vht, uint8_t width)
 			case 160: return "160 MHz";
 		}
 
-	return "unknown";
-}
-
-static const char* format_s1g_chan_width(uint8_t width)
-{
-	switch (width) {
-		case 1: return "1 MHz";
-		case 2: return "2 MHz";
-		case 4: return "4 MHz";
-		case 8: return "8 MHz";
-		case 16: return "16 MHz";
+	if (width_type == IWINFO_WIDTH_MHZ) {
+		static char buf[12];
+		snprintf(buf, sizeof(buf), "%d MHz", width);
+		return buf;
 	}
 
 	return "unknown";
@@ -733,7 +726,7 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 			printf("                    Secondary Channel Offset: %s\n",
 				ht_secondary_offset[e->ht_chan_info.secondary_chan_off]);
 			printf("                    Channel Width: %s\n",
-				format_chan_width(false, e->ht_chan_info.chan_width));
+				format_chan_width(IWINFO_WIDTH_HT, e->ht_chan_info.chan_width));
 		}
 
 		if (e->vht_chan_info.center_chan_1) {
@@ -743,17 +736,17 @@ static void print_scanlist(const struct iwinfo_ops *iw, const char *ifname)
 			printf("                    Center Frequency 2: %d\n",
 				 e->vht_chan_info.center_chan_2);
 			printf("                    Channel Width: %s\n",
-				format_chan_width(true, e->vht_chan_info.chan_width));
+				format_chan_width(IWINFO_WIDTH_VHT, e->vht_chan_info.chan_width));
 		}
 
 		if (e->s1g_chan_info.primary_chan) {
 			printf("          S1G Operation:\n");
-			printf("                    Channel Width: %s\n",
-				format_s1g_chan_width(e->s1g_chan_info.chan_width));
 			printf("                    Primary Channel: %d\n",
 				 e->s1g_chan_info.primary_chan);
 			printf("                    Operating Channel: %d\n",
 				 e->s1g_chan_info.center_chan);
+			printf("                    Channel Width: %s\n",
+				format_chan_width(IWINFO_WIDTH_MHZ, e->s1g_chan_info.chan_width));
 		}
 
 		printf("\n");
