@@ -660,7 +660,7 @@ static void print_info(const struct iwinfo_ops *iw, const char *ifname)
 	if (iw->center_chan1 != NULL) {
 		printf("          Center Channel 1: %s",
 			print_center_chan1(iw, ifname));
-		printf(" 2: %s\n", print_center_chan2(iw, ifname));
+		printf("  2: %s\n", print_center_chan2(iw, ifname));
 	}
 	printf("          Tx-Power: %s  Link Quality: %s/%s\n",
 		print_txpower(iw, ifname),
