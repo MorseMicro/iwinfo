@@ -432,6 +432,7 @@ struct iwinfo_ops {
 	int (*channel)(const char *, int *);
 	int (*center_chan1)(const char *, int *);
 	int (*center_chan2)(const char *, int *);
+	int (*center_width)(const char *, int *);
 	int (*frequency)(const char *, int *);
 	int (*frequency_offset)(const char *, int *);
 	int (*txpower)(const char *, int *);

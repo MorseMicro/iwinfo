@@ -1570,6 +1570,52 @@ static int nl80211_get_center_chan2(const char *ifname, int *buf)
 	return -1;
 }
 
+static int nl80211_chan_width_to_mhz(enum nl80211_chan_width width)
+{
+	switch (width) {
+		case NL80211_CHAN_WIDTH_1:       return 1;
+		case NL80211_CHAN_WIDTH_2:       return 2;
+		case NL80211_CHAN_WIDTH_4:       return 4;
+		case NL80211_CHAN_WIDTH_5:       return 5;
+		case NL80211_CHAN_WIDTH_8:       return 8;
+		case NL80211_CHAN_WIDTH_10:      return 10;
+		case NL80211_CHAN_WIDTH_16:      return 16;
+		case NL80211_CHAN_WIDTH_20:
+		case NL80211_CHAN_WIDTH_20_NOHT: return 20;
+		case NL80211_CHAN_WIDTH_40:      return 40;
+		case NL80211_CHAN_WIDTH_80:      return 80;
+		case NL80211_CHAN_WIDTH_160:     return 160;
+		case NL80211_CHAN_WIDTH_320:     return 320;
+		case NL80211_CHAN_WIDTH_80P80:   return 8080;
+	}
+	return 0;
+}
+
+static int nl80211_get_center_width_cb(struct nl_msg *msg, void *arg)
+{
+	int *buf = arg;
+
+	struct nlattr **tb = nl80211_parse(msg);
+
+	if ((tb[NL80211_ATTR_CHANNEL_WIDTH]))
+		*buf = nl80211_chan_width_to_mhz(nla_get_u32(tb[NL80211_ATTR_CHANNEL_WIDTH]));
+
+	return NL_SKIP;
+}
+
+static int nl80211_get_center_width(const char *ifname, int *buf)
+{
+	char *res;
+
+	res = nl80211_phy2ifname(ifname);
+	*buf = 0;
+
+	if (nl80211_request(res ? res : ifname, NL80211_CMD_GET_INTERFACE, 0,
+			nl80211_get_center_width_cb, buf))
+		return -1;
+	return 0;
+}
+
 static int nl80211_get_txpower_cb(struct nl_msg *msg, void *arg)
 {
 	int *buf = arg;
@@ -3879,6 +3925,7 @@ const struct iwinfo_ops nl80211_ops = {
 	.channel          = nl80211_get_channel,
 	.center_chan1     = nl80211_get_center_chan1,
 	.center_chan2     = nl80211_get_center_chan2,
+	.center_width     = nl80211_get_center_width,
 	.frequency        = nl80211_get_frequency,
 	.frequency_offset = nl80211_get_frequency_offset,
 	.txpower          = nl80211_get_txpower,
