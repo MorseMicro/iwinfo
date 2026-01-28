@@ -4157,7 +4157,6 @@ static int dot11ah_get_center_chan1(const char *ifname, int *buf)
     *buf = ch_entry->halow_channel;
 
     return 0;
-
 }
 
 static int dot11ah_get_channel(const char *ifname, int *buf)
@@ -4175,7 +4174,18 @@ static int dot11ah_get_channel(const char *ifname, int *buf)
 	*buf = ch_entry->halow_channel;
 
 	return 0;
+}
 
+static int dot11ah_get_center_width(const char *ifname, int *buf)
+{
+	int chan;
+
+	dot11ah_get_channel(ifname, &chan);
+	if(!g_map || !chan)
+		return 0;
+
+	*buf = (1 << s1g_chan2bw(g_map, chan));
+	return 0;
 }
 
 static int dot11ah_get_frequency(const char *ifname, int *buf)
@@ -4660,6 +4670,7 @@ const struct iwinfo_ops dot11ah_ops = {
 	.channel          = dot11ah_get_channel,
 	.center_chan1     = dot11ah_get_center_chan1,
 	.center_chan2     = dot11ah_get_center_chan2,
+	.center_width     = dot11ah_get_center_width,
 	.frequency        = dot11ah_get_frequency,
 	.frequency_offset = nl80211_get_frequency_offset,
 	.txpower          = nl80211_get_txpower,
