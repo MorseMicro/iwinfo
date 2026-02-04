@@ -1428,11 +1428,12 @@ static int nl80211_get_frequency_scan_cb(struct nl_msg *msg, void *arg)
 	    !nla_parse_nested(binfo, NL80211_BSS_MAX,
 	                      attr[NL80211_ATTR_BSS], bss_policy))
 	{
-		if (binfo[NL80211_BSS_STATUS] && binfo[NL80211_BSS_FREQUENCY])
+		if (binfo[NL80211_BSS_STATUS] && binfo[NL80211_BSS_FREQUENCY]) {
 			*freq = MHZ_TO_KHZ(nla_get_u32(binfo[NL80211_BSS_FREQUENCY]));
 
-		if (binfo[NL80211_BSS_FREQUENCY_OFFSET])
-			*freq += nla_get_u32(binfo[NL80211_BSS_FREQUENCY_OFFSET]);
+			if (binfo[NL80211_BSS_FREQUENCY_OFFSET])
+				*freq += nla_get_u32(binfo[NL80211_BSS_FREQUENCY_OFFSET]);
+		}
 	}
 
 	return NL_SKIP;
