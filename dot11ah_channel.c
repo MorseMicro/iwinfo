@@ -51,6 +51,13 @@ static const country_channel_map_t au_2020_channel_map = {
 	.ah_vals = au_2020_s1g_channels,
 };
 
+static const country_channel_map_t br_channel_map = {
+	.country = "BR",
+	.chan_schemes = CHAN_SCHEME_ALL,
+	.num_mapped_channels = ARRAY_SIZE(br_s1g_channels),
+	.ah_vals = br_s1g_channels,
+};
+
 /* NZ map */
 static const country_channel_map_t nz_channel_map = {
 	.country = "NZ",
@@ -124,6 +131,7 @@ static const country_channel_map_t *mapped_channel[] = {
 	&us_channel_map,
 	&au_2020_channel_map,
 	&au_revmf_channel_map,
+	&br_channel_map,
 	&nz_channel_map,
 	&eu_channel_map,
 	&gb_channel_map,
