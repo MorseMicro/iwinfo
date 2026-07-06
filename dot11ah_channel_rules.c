@@ -14,7 +14,7 @@
  * with the iwinfo library. If not, see http://www.gnu.org/licenses/.
 */
 
-/* These can be generated from the channels.csv in morse-regdb like:
+/* These can be generated from morse-feed/essentials/morse-regdb/artefacts/repo_channels.csv in morse-regdb like:
 
 awk -F',' -v country=US '
 BEGIN {
@@ -25,10 +25,26 @@ BEGIN {
     bw_map[8] = 3
 }
 $1 == country {
-    bw = $2
-    printf "	{%s, %s, %s, %d},\n", $16, $3, $6, bw_map[bw]
+    bw = $3
+    printf "	{%s, %s, %s, %d},\n",  $16, $4, $7, bw_map[bw]
 }
-'
+' {PATH_TO}/morse-feed/essentials/morse-regdb/artefacts/repo_channels.csv
+
+Or from the post-patch version, with `find . -name "channels.csv"` then:
+
+awk -F',' -v country=US '
+BEGIN {
+    prev = ""
+    bw_map[1] = 0
+    bw_map[2] = 1
+    bw_map[4] = 2
+    bw_map[8] = 3
+}
+$1 == country {
+    bw = $4
+    printf "	{%s, %s, %s, %d},\n", $17, $5, $8, bw_map[bw]
+}
+' {PATH_TO_channels.csv}
 */
 
 #include "dot11ah_channel.h"
