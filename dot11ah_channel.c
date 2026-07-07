@@ -31,6 +31,18 @@ static const country_channel_map_t us_channel_map = {
 	.ah_vals = us_s1g_channels,
 };
 
+
+/* MX map
+ * 
+ * Currently, this is a clone of US channels
+ */
+static const country_channel_map_t mx_channel_map = {
+	.country = "MX",
+	.chan_schemes = CHAN_SCHEME_ALL,
+	.num_mapped_channels = ARRAY_SIZE(us_s1g_channels),
+	.ah_vals = us_s1g_channels,
+};
+
 /* AU 802.11-REVmf (includes 802.11-2024 channels)
  *
  * We can share the same channel map because the unsupported
@@ -38,6 +50,39 @@ static const country_channel_map_t us_channel_map = {
  */
 static const country_channel_map_t au_revmf_channel_map = {
 	.country = "AU",
+	.chan_schemes = CHAN_SCHEME_80211_2024 | CHAN_SCHEME_80211_REVMF,
+	.num_mapped_channels = ARRAY_SIZE(au_revmf_s1g_channels),
+	.ah_vals = au_revmf_s1g_channels,
+};
+
+/* CL map
+ *
+ * Currently, this is a clone of the au_revmf channels
+ */
+static const country_channel_map_t cl_channel_map = {
+	.country = "CL",
+	.chan_schemes = CHAN_SCHEME_80211_2024 | CHAN_SCHEME_80211_REVMF,
+	.num_mapped_channels = ARRAY_SIZE(au_revmf_s1g_channels),
+	.ah_vals = au_revmf_s1g_channels,
+};
+
+/* CO map
+ *
+ * Currently, this is a clone of the au_revmf channels
+ */
+static const country_channel_map_t co_channel_map = {
+	.country = "CO",
+	.chan_schemes = CHAN_SCHEME_80211_2024 | CHAN_SCHEME_80211_REVMF,
+	.num_mapped_channels = ARRAY_SIZE(au_revmf_s1g_channels),
+	.ah_vals = au_revmf_s1g_channels,
+};
+
+/* AR map
+ *
+ * Currently, this is a clone of the au_revmf channels
+ */
+static const country_channel_map_t ar_channel_map = {
+	.country = "AR",
 	.chan_schemes = CHAN_SCHEME_80211_2024 | CHAN_SCHEME_80211_REVMF,
 	.num_mapped_channels = ARRAY_SIZE(au_revmf_s1g_channels),
 	.ah_vals = au_revmf_s1g_channels,
@@ -129,8 +174,12 @@ static const country_channel_map_t channel_map_terminate = {
 
 static const country_channel_map_t *mapped_channel[] = {
 	&us_channel_map,
+	&mx_channel_map,
 	&au_2020_channel_map,
 	&au_revmf_channel_map,
+	&cl_channel_map,
+	&co_channel_map,
+	&ar_channel_map,
 	&br_channel_map,
 	&nz_channel_map,
 	&eu_channel_map,
