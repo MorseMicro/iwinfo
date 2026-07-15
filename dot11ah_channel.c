@@ -281,6 +281,11 @@ float get_freq(country_channel_map_t *map, int channel)
 
 }
 
+uint8_t get_width(country_channel_map_t *map, int channel)
+{
+	return 1 << s1g_chan2bw(map, channel);
+}
+
 int s1g_rate(int fiveG_rate, int frq_mhz)
 {
     int sc_map_5g[][2] = {

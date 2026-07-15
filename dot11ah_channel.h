@@ -17,6 +17,8 @@
 #ifndef __DOT11AH_CHANNELS__
 #define __DOT11AH_CHANNELS__
 
+#include <stdint.h>
+
 #define ARRAY_SIZE(arr)		(sizeof(arr) / sizeof((arr)[0]))
 
 enum chan_scheme {
@@ -70,6 +72,14 @@ channel_to_halow_freq_t *get_s1g(country_channel_map_t *map, int channel);
  * @return a floating point value corresponding to the s1g frequency, in mhz, for the given channel.
  */
 float get_freq(country_channel_map_t *map, int channel);
+
+/**
+ * retrieves the s1g channel width in MHz for a given s1g channel
+ * @param map a map of 5g to s1g channels retrieved by set_s1g_channel_map
+ * @param channel an s1g channel value
+ * @return the channel width in MHz for the given channel.
+ */
+uint8_t get_width(country_channel_map_t *map, int channel);
 
 /**
  * a conversion helper for calculating the correct s1g mcs data rate for a given bandwidth and existing 5g mcs rate

@@ -4186,7 +4186,7 @@ static int dot11ah_get_center_width(const char *ifname, int *buf)
 	if(!g_map || !chan)
 		return 0;
 
-	*buf = (1 << s1g_chan2bw(g_map, chan));
+	*buf = get_width(g_map, chan);
 	return 0;
 }
 
@@ -4452,6 +4452,7 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 		entries[kept].mhz = (int) freq;
 		entries[kept].offset = (freq - (int) freq) * 1000;
 		entries[kept].band = IWINFO_BAND_900;
+		entries[kept].width = get_width(g_map, channel);
 		entries[kept].flags = 0;
 		kept++;
 	}

@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <glob.h>
+#include <stdbool.h>
 
 #include "iwinfo.h"
 
@@ -796,9 +797,10 @@ static void print_txpwrlist(const struct iwinfo_ops *iw, const char *ifname)
 
 static void print_freqlist(const struct iwinfo_ops *iw, const char *ifname)
 {
-	int i, len, freq;
-	char buf[IWINFO_BUFSIZE];
+	int i, len, freq, width;
+	char buf[IWINFO_BUFSIZE], widthstr[16];
 	struct iwinfo_freqlist_entry *e;
+	bool current;
 
 	if (iw->freqlist(ifname, buf, &len) || len <= 0)
 	{
@@ -809,15 +811,33 @@ static void print_freqlist(const struct iwinfo_ops *iw, const char *ifname)
 	if (iw->frequency(ifname, &freq))
 		freq = -1;
 
+	if (!iw->center_width || iw->center_width(ifname, &width))
+		width = 0;
+
 	for (i = 0; i < len; i += sizeof(struct iwinfo_freqlist_entry))
 	{
 		e = (struct iwinfo_freqlist_entry *) &buf[i];
 
-		printf("%s %s (Band: %s, Channel %s) %s\n",
-			(freq == (int)(MHZ_TO_KHZ(e->mhz) + e->offset)) ? "*" : " ",
+		/*
+		 * Mark the current channel. Where a width is known (dot11ah),
+		 * several channels can share a frequency, so also match width;
+		 * otherwise fall back to frequency alone.
+		 */
+		current = (freq == (int)(MHZ_TO_KHZ(e->mhz) + e->offset)) &&
+			(e->width == 0 || width == 0 || e->width == width);
+
+		if (e->width)
+			snprintf(widthstr, sizeof(widthstr), ", Width: %s",
+				format_chan_width(IWINFO_WIDTH_MHZ, e->width));
+		else
+			widthstr[0] = 0;
+
+		printf("%s %s (Band: %s, Channel %s%s) %s\n",
+			current ? "*" : " ",
 			format_frequency(MHZ_TO_KHZ(e->mhz) + e->offset),
 			format_band(e->band),
 			format_channel(e->channel),
+			widthstr,
 			format_freqflags(e->flags));
 	}
 }

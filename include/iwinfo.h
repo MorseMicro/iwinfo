@@ -318,6 +318,7 @@ struct iwinfo_freqlist_entry {
 	uint32_t offset;
 	uint8_t restricted;
 	uint32_t flags;
+	uint8_t width;
 };
 
 struct iwinfo_crypto_entry {
