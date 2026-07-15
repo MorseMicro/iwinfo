@@ -814,7 +814,7 @@ static void print_freqlist(const struct iwinfo_ops *iw, const char *ifname)
 		e = (struct iwinfo_freqlist_entry *) &buf[i];
 
 		printf("%s %s (Band: %s, Channel %s) %s\n",
-			(freq == e->mhz) ? "*" : " ",
+			(freq == (int)(MHZ_TO_KHZ(e->mhz) + e->offset)) ? "*" : " ",
 			format_frequency(MHZ_TO_KHZ(e->mhz) + e->offset),
 			format_band(e->band),
 			format_channel(e->channel),
