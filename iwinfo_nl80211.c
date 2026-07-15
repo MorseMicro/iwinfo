@@ -4413,6 +4413,7 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 	return 0;
 }
 
+/* Sort freqlist entries by centre frequency, then by width. */
 static int dot11ah_freq_compare(const void *a, const void *b)
 {
 	const struct iwinfo_freqlist_entry *fe1 = (const struct iwinfo_freqlist_entry *) a;
@@ -4422,6 +4423,8 @@ static int dot11ah_freq_compare(const void *a, const void *b)
 		return (fe1->mhz < fe2->mhz) ? -1 : 1;
 	if (fe1->offset != fe2->offset)
 		return (fe1->offset < fe2->offset) ? -1 : 1;
+	if (fe1->width != fe2->width)
+		return (fe1->width < fe2->width) ? -1 : 1;
 	return 0;
 }
 
@@ -4456,10 +4459,26 @@ static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 		entries[kept].flags = 0;
 		kept++;
 	}
+	count = kept;
+
+	qsort(entries, count, fe_size, dot11ah_freq_compare);
+
+	/*
+	 * Collapse adjacent entries that share the same frequency AND width.
+	 * Channels of different width that share a centre are distinct and both kept.
+	 */
+	kept = 0;
+	for (int i = 0; i < count; i++) {
+		if (kept > 0 &&
+		    entries[i].mhz == entries[kept - 1].mhz &&
+		    entries[i].offset == entries[kept - 1].offset &&
+		    entries[i].width == entries[kept - 1].width)
+			continue;
+
+		entries[kept++] = entries[i];
+	}
 
 	*len = kept * fe_size;
-
-	qsort(buf, kept, fe_size, dot11ah_freq_compare);
 
 	return 0;
 }
