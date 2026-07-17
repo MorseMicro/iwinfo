@@ -4422,39 +4422,38 @@ static int dot11ah_freq_compare(const void *a, const void *b)
 
 static int dot11ah_get_freqlist(const char *ifname, char *buf, int *len)
 {
-	struct iwinfo_freqlist_entry *fe;
+	struct iwinfo_freqlist_entry *entries = (struct iwinfo_freqlist_entry *) buf;
 	channel_to_halow_freq_t *ch_entry;
-	int bad_channels = 0;
 	const size_t fe_size = sizeof(struct iwinfo_freqlist_entry);
+	int count, kept = 0;
+
 	if(nl80211_get_freqlist(ifname, buf, len) < 0)
 		return -1;
 
-	for(char *p = buf; p < (buf + *len); p += fe_size){
-		fe = (struct iwinfo_freqlist_entry *) p;
-		ch_entry = get_s1g(g_map, fe->channel);
+	count = *len / fe_size;
 
-		fe->channel = ch_entry->halow_channel;
-		fe->mhz = (int) get_freq(g_map, fe->channel);
-		fe->offset = (get_freq(g_map, fe->channel) - fe->mhz) * 1000;
-		fe->band = IWINFO_BAND_900;
-		fe->flags = 0;
+	for(int i = 0; i < count; i++){
+		ch_entry = get_s1g(g_map, entries[i].channel);
 
-		if (fe->mhz <= 0) {
-			bad_channels += 1;
-		}
-	}
+		int channel = ch_entry->halow_channel;
 
-	qsort(buf, *len/fe_size, fe_size, dot11ah_freq_compare);
-
-	if (bad_channels) {
 		// Workaround needed for SW-13784 (bad channels returned).
-		// Remove '0' frequency channels at start.
-		*len -= bad_channels * fe_size;
+		if (channel == 0)
+			continue;
 
-		if (*len) {
-			memmove(buf, buf + bad_channels * fe_size, *len);
-		}
+		float freq = get_freq(g_map, channel);
+
+		entries[kept].channel = channel;
+		entries[kept].mhz = (int) freq;
+		entries[kept].offset = (freq - (int) freq) * 1000;
+		entries[kept].band = IWINFO_BAND_900;
+		entries[kept].flags = 0;
+		kept++;
 	}
+
+	*len = kept * fe_size;
+
+	qsort(buf, kept, fe_size, dot11ah_freq_compare);
 
 	return 0;
 }
