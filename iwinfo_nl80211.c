@@ -4413,18 +4413,18 @@ static int dot11ah_get_scanlist(const char *ifname, char *buf, int *len)
 	return 0;
 }
 
-/* Sort freqlist entries by centre frequency, then by width. */
+/* Sort freqlist entries by width, then centre frequency. */
 static int dot11ah_freq_compare(const void *a, const void *b)
 {
 	const struct iwinfo_freqlist_entry *fe1 = (const struct iwinfo_freqlist_entry *) a;
 	const struct iwinfo_freqlist_entry *fe2 = (const struct iwinfo_freqlist_entry *) b;
 
+	if (fe1->width != fe2->width)
+		return (fe1->width < fe2->width) ? -1 : 1;
 	if (fe1->mhz != fe2->mhz)
 		return (fe1->mhz < fe2->mhz) ? -1 : 1;
 	if (fe1->offset != fe2->offset)
 		return (fe1->offset < fe2->offset) ? -1 : 1;
-	if (fe1->width != fe2->width)
-		return (fe1->width < fe2->width) ? -1 : 1;
 	return 0;
 }
 
