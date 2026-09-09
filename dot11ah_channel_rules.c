@@ -307,6 +307,8 @@ static channel_to_halow_freq_t in_s1g_channels[] = {
 /* JP map */
 static channel_to_halow_freq_t jp_s1g_channels[] = {
 	/* 1 Mhz */
+	{149, 94, 847.0, 0},
+	{153, 96, 848.0, 0},
 	{108, 9, 921, 0},
 	{36, 13, 923, 0},
 	{40, 15, 924, 0},
@@ -317,6 +319,7 @@ static channel_to_halow_freq_t jp_s1g_channels[] = {
 	{60, 19, 926, 0},  /* ... */
 	{64, 21, 927, 0},
 	/* 2Mhz */
+	{151, 95, 847.5, 1},
 	{38, 2, 923.5, 1},
 	{54, 4, 924.5, 1},
 	{46, 6, 925.5, 1},
