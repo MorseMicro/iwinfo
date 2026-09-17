@@ -196,10 +196,15 @@ static const country_channel_map_t *mapped_channel[] = {
 
 static enum chan_scheme morse_get_chan_scheme()
 {
-	FILE *f = fopen("/sys/module/dot11ah/parameters/channelization_scheme", "r");
+	FILE *f = fopen("/sys/module/morse/parameters/channelization_scheme", "r");
+
 	if (!f) {
-		/* This indicates an old driver. */
-		return CHAN_SCHEME_80211_2020;
+		/* Pre 2.2 driver has dot11ah as a separate module */
+		f = fopen("/sys/module/dot11ah/parameters/channelization_scheme", "r");
+		if (!f) {
+			/* This indicates an old driver. */
+			return CHAN_SCHEME_80211_2020;
+		}
 	}
 
 	int r = fgetc(f);
