@@ -1470,7 +1470,7 @@ static int nl80211_get_frequency(const char *ifname, int *buf)
 	                                  "channel", channel, sizeof(channel),
 	                                  "ieee80211ax", ax, sizeof(ax)) >= 2)
 	{
-		*buf = MHZ_TO_KHZ(nl80211_channel2freq(atoi(channel), hwmode, ax[0] == '1'));
+		*buf = nl80211_channel2freq(atoi(channel), hwmode, ax[0] == '1');
 	}
 
 	/* failed, try to find frequency from scan results */
